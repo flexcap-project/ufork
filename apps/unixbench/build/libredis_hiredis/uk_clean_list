@@ -1,0 +1,12 @@
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/async.o
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/async.d
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/hiredis.o
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/hiredis.d
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/net.o
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/net.d
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/read.o
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/read.d
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/sds.o
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis/sds.d
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis.ld.o
+/root/.unikraft/apps/flexos-example/build/libredis_hiredis.o

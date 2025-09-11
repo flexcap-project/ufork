@@ -1,0 +1,4 @@
+/root/.unikraft/apps/redis/build/libukalloc/alloc.o
+/root/.unikraft/apps/redis/build/libukalloc/alloc.d
+/root/.unikraft/apps/redis/build/libukalloc.ld.o
+/root/.unikraft/apps/redis/build/libukalloc.o

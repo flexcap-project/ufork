@@ -1,0 +1,6 @@
+name        := "libsodium"
+description := "A modern, portable, easy to use crypto library."
+gitrepo     := "https://github.com/jedisct1/libsodium.git"
+homepage    := "https://doc.libsodium.org/"
+version     := 1.0.18 sha256:d59323c6b712a1519a5daf710b68f5e7fde57040845ffec53850911f10a5d4f4 https://github.com/jedisct1/libsodium/archive/1.0.18.tar.gz
+license     := "ISC"

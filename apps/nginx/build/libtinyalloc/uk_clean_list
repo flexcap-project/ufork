@@ -1,0 +1,6 @@
+/root/.unikraft/apps/nginx/build/libtinyalloc/glue.o
+/root/.unikraft/apps/nginx/build/libtinyalloc/glue.d
+/root/.unikraft/apps/nginx/build/libtinyalloc/tinyalloc.o
+/root/.unikraft/apps/nginx/build/libtinyalloc/tinyalloc.d
+/root/.unikraft/apps/nginx/build/libtinyalloc.ld.o
+/root/.unikraft/apps/nginx/build/libtinyalloc.o

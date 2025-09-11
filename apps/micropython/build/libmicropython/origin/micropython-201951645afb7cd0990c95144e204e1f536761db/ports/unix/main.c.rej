@@ -1,0 +1,38 @@
+--- unix/main.c	2017-08-23 03:50:11.000000000 +0200
++++ unix/main.c	2019-10-07 20:47:18.419884044 +0200
+@@ -616,14 +618,26 @@
+         }
+     }
+ 
+-    if (ret == NOTHING_EXECUTED || inspect) {
+-        if (isatty(0)) {
+-            prompt_read_history();
+-            ret = do_repl();
+-            prompt_write_history();
+
+-        } else {
+-            ret = execute_from_lexer(LEX_SRC_STDIN, NULL, MP_PARSE_FILE_INPUT, false);
+-        }
++    /* see if script is available from initrd */
++    struct ukplat_memregion_desc *img;
++    char *cstr;
++    if (ukplat_memregion_find_initrd0(&img) >= 0) {
++      cstr = (char *)img->vbase;
++      ret = do_str(cstr);
++    }
++    /* repl mode */
++    else {
++      #if MICROPY_REPL_EVENT_DRIVEN
++      pyexec_event_repl_init();
++      for (;;) {
++	int c = mp_hal_stdin_rx_chr();
++	if (pyexec_event_repl_process_char(c)) {
++	  break;
++	}
++      }
++      #else
++      pyexec_friendly_repl();
++      #endif
+     }
+ 
+     #if MICROPY_PY_MICROPYTHON_MEM_INFO

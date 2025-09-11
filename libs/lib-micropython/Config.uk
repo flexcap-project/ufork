@@ -1,0 +1,13 @@
+menuconfig LIBMICROPYTHON
+	   bool "Micropython - Python for microcontrollers"
+	   default y
+	   select LIBLWIP
+	   select LWIP_NOTHREADS
+	   select LWIP_IGMP
+	   select LIBMUSL
+
+if LIBMICROPYTHON
+config LIBMICROPYTHON_MAIN_FUNCTION
+	bool "Provide main function"
+	default y
+endif

@@ -1,0 +1,10 @@
+/root/.unikraft/apps/flexos-example/build/libmuslglue/mem.o
+/root/.unikraft/apps/flexos-example/build/libmuslglue/mem.d
+/root/.unikraft/apps/flexos-example/build/libmuslglue/__uk_init_tls.o
+/root/.unikraft/apps/flexos-example/build/libmuslglue/__uk_init_tls.d
+/root/.unikraft/apps/flexos-example/build/libmuslglue/__uk_unmapself.o
+/root/.unikraft/apps/flexos-example/build/libmuslglue/__uk_unmapself.d
+/root/.unikraft/apps/flexos-example/build/libmuslglue/__set_thread_area.o
+/root/.unikraft/apps/flexos-example/build/libmuslglue/__set_thread_area.d
+/root/.unikraft/apps/flexos-example/build/libmuslglue.ld.o
+/root/.unikraft/apps/flexos-example/build/libmuslglue.o

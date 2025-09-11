@@ -1,0 +1,21 @@
+---
+specification: '0.6'
+name: unixbench
+unikraft:
+  version: aec0420
+  kconfig:
+    - CONFIG_LIBFLEXOS=y
+targets:
+  - architecture: arm64
+    platform: morello
+compartments:
+  - name: comp1
+    mechanism:
+      driver: morello
+    default: true
+  - name: comp2
+    mechanism:
+      driver: morello
+libraries: {}
+volumes: {}
+networks: {}

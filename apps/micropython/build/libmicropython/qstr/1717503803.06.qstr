@@ -1,0 +1,5 @@
+Q(id)
+Q(read_u16)
+Q(value)
+Q(battery_level)
+Q(ADC)

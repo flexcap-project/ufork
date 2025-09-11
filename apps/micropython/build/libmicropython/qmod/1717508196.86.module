@@ -1,0 +1,1 @@
+MP_REGISTER_MODULE(MP_QSTR_example_package, example_package_user_cmodule);

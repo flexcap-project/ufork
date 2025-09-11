@@ -1,0 +1,3 @@
+#define REDIS_GIT_SHA1 "c5ee3442"
+#define REDIS_GIT_DIRTY "86"
+#define REDIS_BUILD_ID "ukhost-1572605508"

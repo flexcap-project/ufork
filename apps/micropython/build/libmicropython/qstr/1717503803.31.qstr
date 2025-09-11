@@ -1,0 +1,8 @@
+Q(pin)
+Q(freq)
+Q(duty)
+Q(duty_u16)
+Q(duty_ns)
+Q(invert)
+Q(device)
+Q(channel)

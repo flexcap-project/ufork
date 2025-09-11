@@ -1,0 +1,6 @@
+/root/.unikraft/apps/nginx/build/libuklock/semaphore.o
+/root/.unikraft/apps/nginx/build/libuklock/semaphore.d
+/root/.unikraft/apps/nginx/build/libuklock/mutex.o
+/root/.unikraft/apps/nginx/build/libuklock/mutex.d
+/root/.unikraft/apps/nginx/build/libuklock.ld.o
+/root/.unikraft/apps/nginx/build/libuklock.o

@@ -1,0 +1,17 @@
+getegid-0
+geteuid-0
+getgid-0
+getuid-0
+uname-1
+sethostname-2
+nanosleep-2
+clock_gettime-2
+getpgid-1
+setpgid-2
+setsid-0
+getsid-1
+setpriority-3
+getpgrp-0
+getpriority-2
+getpid-0
+getppid-0

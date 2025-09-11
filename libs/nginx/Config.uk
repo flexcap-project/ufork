@@ -1,0 +1,631 @@
+menuconfig LIBNGINX
+	bool "libnginx - a HTTP and reverse proxy, a mail proxy, and a generic TCP/UDP proxy server"
+	default n
+	select LIBUKSCHEDCOOP
+	select LIBPOSIX_LIBDL
+	select LIBPOSIX_PROCESS
+	select LIBPOSIX_USER
+	select LIBPOSIX_SYSINFO
+	#select LIBUKMMAP
+	select LIBUKTIME
+	select LIBNEWLIBC
+	select LIBLWIP
+	select LWIP_UKNETDEV
+	select LWIP_TCP
+	select LWIP_WND_SCALE
+	select LWIP_TCP_KEEPALIVE
+	select LWIP_THREADS
+	select LWIP_SOCKET
+	select LWIP_AUTOIFACE
+	select LWIP_IPV4
+	select LWIP_DHCP
+	select LWIP_DNS
+	select LIBPTHREAD_EMBEDDED
+
+if LIBNGINX
+
+config LIBNGINX_MAIN_FUNCTION
+	bool "Provide main function"
+	default n
+
+config LIBNGINX_DEBUG
+	bool "Build with debugging enabled"
+	default n
+
+menuconfig LIBNGINX_HTTP
+	bool "Enable HTTP and reverse proxy server"
+	default y
+
+if LIBNGINX_HTTP
+
+config LIBNGINX_HTTP_V2
+	bool "Enable ngx_http_v2_module and ngx_http_v2_filter_module"
+	default n
+	help
+		Provides support for HTTP/2.
+
+config LIBNGINX_HTTP_GZIP
+	bool "Enable ngx_http_gzip_module"
+	default n
+	select LIBZLIB
+	help
+		The ngx_http_gzip_module module is a filter that compresses responses using
+		the "gzip" method.
+
+config LIBNGINX_HTTP_GZIP_STATIC
+	bool "Enable ngx_http_gzip_static_module"
+	default n
+	select LIBNGINX_HTTP_GZIP
+	help
+		The ngx_http_gzip_static_module module allows sending precompressed files
+		with the ".gz" filename extension instead of regular files. 
+
+config LIBNGINX_HTTP_SSI
+	bool "Enable ngx_http_ssi_module"
+	default y
+	select LIBNGINX_HTTP_POSTPONE
+	help
+		The ngx_http_ssi_module module is a filter that processes SSI (Server Side
+		Includes) commands in responses passing through it. Currently, the list of
+		supported SSI commands is incomplete.  
+
+config LIBNGINX_HTTP_SLICE
+	bool "Enable ngx_http_slice_module"
+	default n
+	select LIBNGINX_HTTP_POSTPONE
+	help
+		The ngx_http_slice_module module is a filter that splits a request into 
+		subrequests, each returning a certain range of response. The filter 
+		provides more effective caching of big responses. 
+
+config LIBNGINX_HTTP_ADDITION
+	bool "Enable ngx_http_addition_module"
+	default n
+	select LIBNGINX_HTTP_POSTPONE
+	help
+		The ngx_http_addition_module module is a filter that adds text before and 
+		after a response. 
+
+config LIBNGINX_HTTP_POSTPONE
+	bool "Enable ngx_http_postpone_module"
+	default n
+	help
+		With the ngx_http_postpone_module it is possible that the transmission of 
+		client data will be postponed until nginx has at least size bytes of data 
+		to send.  A zero value disables postponing data transmission. 
+
+config LIBNGINX_HTTP_CHARSET
+	bool "Enable ngx_http_charset_module"
+	default y
+	help
+		The ngx_http_charset_module module adds the specified charset to the 
+		"Content-Type" response header field.  In addition, the module can convert 
+		data from one charset to another.
+
+config LIBNGINX_HTTP_XSLT
+	bool "Enable ngx_http_xslt_module"
+	default n
+	help
+		The ngx_http_xslt_module is a filter that transforms XML responses using 
+		one or more XSLT stylesheets.  
+
+config LIBNGINX_HTTP_IMAGE_FILTER
+	bool "Enable ngx_http_image_filter_module"
+	default n
+	help
+		The ngx_http_image_filter_module module is a filter that transforms images 
+		in JPEG, GIF, PNG, and WebP formats.  
+
+config LIBNGINX_HTTP_SUB
+	bool "Enable ngx_http_sub_module"
+	default n
+	help
+		The ngx_http_sub_module module is a filter that modifies a response by 
+		replacing one specified string by another. 
+
+config LIBNGINX_HTTP_GUNZIP
+	bool "Enable ngx_http_gunzip_filter_module"
+	default n
+	help
+		The ngx_http_gunzip_module module is a filter that decompresses responses 
+		with "Content-Encoding: gzip" for clients that do not support "gzip" 
+		encoding method.  The module will be useful when it is desirable to store 
+		data compressed to save space and reduce I/O costs. 
+
+config LIBNGINX_HTTP_USERID
+	bool "Enable ngx_http_userid_module"
+	default y
+	select LIBPOSIX_USER
+	help
+		The ngx_http_userid_module module sets cookies suitable for client 
+		identification.  Received and set cookies can be logged using the embedded 
+		variables $uid_got and $uid_set. This module is compatible with the mod_uid 
+		module for Apache. 
+
+config LIBNGINX_HTTP_DAV
+	bool "Enable ngx_http_dav_module"
+	default n
+	help
+		The ngx_http_dav_module module is intended for file management automation 
+		via the WebDAV protocol.  The module processes HTTP and WebDAV methods PUT, 
+		DELETE, MKCOL, COPY, and MOVE. 
+
+config LIBNGINX_HTTP_AUTOINDEX
+	bool "Enable ngx_http_autoindex_module"
+	default y
+	help
+		The ngx_http_autoindex_module module processes requests ending with the 
+		slash character ('/') and produces a directory listing.  Usually a request 
+		is passed to the ngx_http_autoindex_module module when the 
+		ngx_http_index_module module cannot find an index file.
+
+config LIBNGINX_HTTP_RANDOM_INDEX
+	bool "Enable ngx_http_random_index_module"
+	default n
+	help
+		The ngx_http_random_index_module module processes requests ending with the 
+		slash character ('/') and picks a random file in a directory to serve as an 
+		index file.  The module is processed before the ngx_http_index_module 
+		module.
+
+config LIBNGINX_HTTP_MIRROR
+	bool "Enable ngx_http_mirror_module"
+	default y
+	help
+		The ngx_http_mirror_module module implements mirroring of an original 
+		request by creating background mirror subrequests.  Responses to mirror 
+		subrequests are ignored. 
+
+config LIBNGINX_HTTP_AUTH_REQUEST
+	bool "Enable ngx_http_auth_request_module"
+	default n
+	help
+		The ngx_http_auth_request_module module implements client authorization 
+		based on the result of a subrequest.  If the subrequest returns a 2xx 
+		response code, the access is allowed.  If it returns 401 or 403, the access 
+		is denied with the corresponding error code.  Any other response code 
+		returned by the subrequest is considered an error.
+		
+		For the 401 error, the client also receives the "WWW-Authenticate" header 
+		from the subrequest response.
+		
+		The module may be combined with other access modules, such as 
+		ngx_http_access_module, ngx_http_auth_basic_module, and 
+		ngx_http_auth_jwt_module, via the satisfy directive. 
+
+config LIBNGINX_HTTP_AUTH_BASIC
+	bool "Enable ngx_http_auth_basic_module"
+	default n
+	select LIBCRYPTO
+	help
+		The ngx_http_auth_basic_module module allows limiting access to resources 
+		by validating the user name and password using the "HTTP Basic 
+		Authentication" protocol.
+		 
+		Access can also be limited by address, by the result of subrequest, or by 
+		JWT.  Simultaneous limitation of access by address and by password is 
+		controlled by the satisfy directive. 
+
+config LIBNGINX_HTTP_ACCESS
+	bool "Enable ngx_http_access_module"
+	default y
+	help
+		The ngx_http_access_module module allows limiting access to certain client 
+		addresses.
+		
+		Access can also be limited by password, by the result of subrequest, or by 
+		JWT.  Simultaneous limitation of access by address and by password is 
+		controlled by the satisfy directive. 
+
+config LIBNGINX_HTTP_LIMIT_CONN
+	bool "Enable ngx_http_limit_conn_module"
+	default y
+	help
+		The ngx_http_limit_conn_module module is used to limit the number of 
+		connections per the defined key, in particular, the number of connections 
+		from a single IP address.
+		
+		Not all connections are counted. A connection is counted only if it has a 
+		request being processed by the server and the whole request header has 
+		already been read. 
+
+config LIBNGINX_HTTP_LIMIT_REQ
+	bool "Enable ngx_http_limit_req_module"
+	default y
+	help
+		The ngx_http_limit_req_module module is used to limit the request 
+		processing rate per a defined key, in particular, the processing rate of 
+		requests coming from a single IP address.  The limitation is done using the 
+		"leaky bucket" method. 
+
+config LIBNGINX_HTTP_REALIP
+	bool "Enable ngx_http_realip_module"
+	default n
+	help
+		The ngx_http_realip_module module is used to change the client address and 
+		optional port to those sent in the specified header field.
+
+config LIBNGINX_HTTP_STATUS
+	bool "Enable ngx_http_status_module"
+	default n
+	help
+		The ngx_http_status_module module provides access to various status 
+		information.
+
+config LIBNGINX_HTTP_GEO
+	bool "Enable ngx_http_geo_module"
+	default y
+	help
+		The ngx_http_geo_module module creates variables with values depending on 
+		the client IP address. 
+
+config LIBNGINX_HTTP_GEOIP
+	bool "Enable ngx_http_geoip_moduleHTTP geoip"
+	default n
+	help
+		The ngx_http_geoip_module module creates variables with values depending on 
+		the client IP address, using the precompiled MaxMind databases.
+		
+		When using the databases with IPv6 support, IPv4 addresses are looked up as 
+		IPv4-mapped IPv6 addresses. 
+
+config LIBNGINX_HTTP_MAP
+	bool "Enable ngx_http_map_module"
+	default y
+	help
+		The ngx_http_map_module module creates variables whose values depend on 
+		values of other variables. 
+
+config LIBNGINX_HTTP_SPLIT_CLIENTS
+	bool "Enable ngx_http_split_clients_module"
+	default y
+	help
+		The ngx_http_split_clients_module module creates variables suitable for A/B 
+		testing, also known as split testing. 
+
+config LIBNGINX_HTTP_REFERER
+	bool "Enable ngx_http_referer_module"
+	default y
+	help
+		The ngx_http_referer_module module is used to block access to a site for 
+		requests with invalid values in the "Referer" header field. It should be 
+		kept in mind that fabricating a request with an appropriate "Referer" field 
+		value is quite easy, and so the intended purpose of this module is not to 
+		block such requests thoroughly but to block the mass flow of requests sent 
+		by regular browsers. It should also be taken into consideration that 
+		regular browsers may not send the "Referer" field even for valid requests. 
+
+config LIBNGINX_HTTP_REWRITE
+	bool "Enable ngx_http_rewrite_module"
+	default n
+	select LIBPCRE
+	help
+		The ngx_http_rewrite_module module is used to change request URI using PCRE 
+		regular expressions, return redirects, and conditionally select 
+		configurations. 
+
+config LIBNGINX_HTTP_SSL
+	bool "Enable ngx_http_ssl_module"
+	default n
+	select LIBOPENSSL
+	select LIBSSL
+	help
+		The ngx_http_ssl_module module provides the necessary support for HTTPS.
+
+config LIBNGINX_HTTP_PROXY
+	bool "Enable ngx_http_proxy_module"
+	default y
+	help
+		The ngx_http_proxy_module module allows passing requests to another server.
+
+config LIBNGINX_HTTP_FASTCGI
+	bool "Enable ngx_http_fastcgi_module"
+	default y
+	help
+		The ngx_http_fastcgi_module module allows passing requests to a FastCGI 
+		server.
+
+config LIBNGINX_HTTP_UWSGI
+	bool "Enable ngx_http_uwsgi_module"
+	default y
+	help
+		The ngx_http_uwsgi_module module allows passing requests to a uwsgi server.
+
+config LIBNGINX_HTTP_SCGI
+	bool "Enable ngx_http_scgi_module"
+	default y
+	help
+		The ngx_http_scgi_module module allows passing requests to an SCGI server.
+
+config LIBNGINX_HTTP_GRPC
+	bool "Enable ngx_http_grpc_module"
+	default y
+	select LIBNGINX_HTTP_V2
+	help
+		The ngx_http_grpc_module module allows passing requests to a gRPC server.
+
+config LIBNGINX_HTTP_PERL
+	bool "Enable ngx_http_perl_module"
+	default n
+	select LIBPCRE
+	help
+		The ngx_http_perl_module module is used to implement location and variable 
+		handlers in Perl and insert Perl calls into SSI. 
+
+config LIBNGINX_HTTP_MEMCACHED
+	bool "Enable ngx_http_memcached_module"
+	default y
+	help
+		The ngx_http_memcached_module module is used to obtain responses from a 
+		memcached server.  The key is set in the $memcached_key variable.  A 
+		response should be put in memcached in advance by means external to nginx. 
+
+config LIBNGINX_HTTP_EMPTY_GIF
+	bool "Enable ngx_http_empty_gif_module"
+	default y
+	help
+		The ngx_http_empty_gif_module module emits single-pixel transparent GIF. 
+
+config LIBNGINX_HTTP_BROWSER
+	bool "Enable ngx_http_browser_module"
+	default y
+	help
+		The ngx_http_browser_module module creates variables whose values depend on 
+		the value of the "User-Agent" request header field:
+
+		 	$modern_browser:  equals the value set by the modern_browser_value 
+				directive, if a browser was identified as modern;
+
+			$ancient_browser: equals the value set by the ancient_browser_value 
+				directive, if a browser was identified as ancient;
+
+			$msie: equals "1" if a browser was identified as MSIE of any version.  
+
+config LIBNGINX_HTTP_SECURE_LINK
+	bool "Enable ngx_http_secure_link_module"
+	default n
+	help
+		The ngx_http_secure_link_module module is used to check authenticity of 
+		requested links, protect resources from unauthorized  access, and limit 
+		link lifetime.
+		 
+		The authenticity of a requested link is verified by comparing the checksum 
+		value passed in a request with the value computed for the request.  If a 
+		link has a limited lifetime and the time has expired, the link is 
+		considered outdated. The status of these checks is made available in the 
+		$secure_link variable.
+		
+		The module provides two alternative operation modes.  The first mode is 
+		enabled by the secure_link_secret directive and is used to check 
+		authenticity of requested links as well as protect resources from 
+		unauthorized access.  The second mode is enabled by the secure_link and 
+		secure_link_md5 directives and is also used to limit lifetime of links. 
+
+config LIBNGINX_HTTP_DEGRADATION
+	bool "Enable ngx_http_degradation_module"
+	default n
+	help
+		The ngx_http_degradation_module orders Nginx to serve a particular error 
+		page when low memory conditions are met.
+
+config LIBNGINX_HTTP_FLV
+	bool "Enable ngx_http_flv_module"
+	default n
+	help
+		The ngx_http_flv_module module provides pseudo-streaming server-side 
+		support for Flash Video (FLV) files.
+		
+		It handles requests with the start argument in the request URI's query 
+		string specially, by sending back the contents of a file starting from the 
+		requested byte offset and with the prepended FLV header.
+
+config LIBNGINX_HTTP_UPSTREAM
+	bool "Enable ngx_http_upstream_module"
+	default y
+	help
+		The ngx_http_upstream_module module is used to define groups of servers 
+		that can be referenced by the proxy_pass, fastcgi_pass, uwsgi_pass, 
+		scgi_pass, memcached_pass, and grpc_pass directives. 
+
+config LIBNGINX_HTTP_UPSTREAM_HASH
+	bool "Enable ngx_http_upstream_hash_module"
+	select LIBNGINX_HTTP_UPSTREAM
+	default y
+	help
+		Specifies a load balancing method for a server group where the 
+		client-server mapping is based on the hashed key value.
+
+config LIBNGINX_HTTP_UPSTREAM_IP_HASH
+	bool "Enable ngx_http_upstream_ip_hash_module"
+	select LIBNGINX_HTTP_UPSTREAM
+	default y
+	help
+		Specifies that a group should use a load balancing method where requests 
+		are distributed between servers based on client IP addresses.
+
+config LIBNGINX_HTTP_UPSTREAM_LEAST_CONN
+	bool "Enable ngx_http_upstream_least_conn_module"
+	select LIBNGINX_HTTP_UPSTREAM
+	default y
+	help
+		Specifies that a group should use a load balancing method where a request 
+		is passed to the server with the least number of active connections, taking 
+		into account weights of servers.  If there are several such servers, they 
+		are tried in turn using a weighted round-robin balancing method. 
+
+config LIBNGINX_HTTP_UPSTREAM_RANDOM
+	bool "Enable ngx_http_upstream_random_module"
+	select LIBNGINX_HTTP_UPSTREAM
+	default y
+	help
+		Specifies that a group should use a load balancing method where a request 
+		is passed to a randomly selected server, taking into account weights of 
+		servers. 
+
+config LIBNGINX_HTTP_UPSTREAM_KEEPALIVE
+	bool "Enable ngx_http_upstream_keepalive_module"
+	select LIBNGINX_HTTP_UPSTREAM
+	default y
+	help
+		Activates the cache for connections to upstream servers.
+
+config LIBNGINX_HTTP_UPSTREAM_ZONE
+	bool "Enable ngx_http_upstream_zone_module"
+	select LIBNGINX_HTTP_UPSTREAM
+	default y
+	help
+		Defines the name and size of the shared memory zone that keeps the group's 
+		configuration and run-time state that are shared between worker processes.
+
+config LIBNGINX_HTTP_STUB_STATUS
+	bool "Enable ngx_http_stub_status_module"
+	default y
+	help
+		The ngx_http_stub_status_module module provides access to basic status 
+		information.
+
+endif
+
+menuconfig LIBNGINX_MAIL
+	bool "Enable mail proxy server"
+	default n
+
+if LIBNGINX_MAIL
+
+config LIBNGINX_MAIL_SSL
+	bool "Enable ngx_mail_ssl_module"
+	default n
+	select LIBOPENSSL
+	select LIBSSL
+	help
+		The ngx_mail_ssl_module module provides the necessary support for a mail 
+		proxy server to work with the SSL/TLS protocol. 
+
+config LIBNGINX_MAIL_POP3
+	bool "Enable ngx_mail_pop3_module"
+	default y
+	help
+		Sets permitted methods of authentication for POP3 clients.
+
+config LIBNGINX_MAIL_IMAP
+	bool "Enable ngx_mail_imap_module"
+	default y
+	help
+		Sets permitted methods of authentication for IMAP clients.
+
+config LIBNGINX_MAIL_SMTP
+	bool "Enable ngx_mail_smtp_module"
+	default y
+	help
+		Sets permitted methods of SASL authentication for SMTP clients.
+
+endif
+
+menuconfig LIBNGINX_STREAM
+	bool "Enable generic TCP/UDP proxy server"
+	default n
+
+if LIBNGINX_STREAM
+
+config LIBNGINX_STREAM_SSL
+	bool "Enable ngx_stream_ssl_module"
+	default n
+	select LIBOPENSSL
+	select LIBSSL
+	select LIBUKSWRAND
+	select LIBUKSWRAND_DEVFS
+	help
+		The ngx_stream_ssl_module module provides the necessary support for a 
+		stream proxy server to work with the SSL/TLS protocol.
+
+config LIBNGINX_STREAM_REALIP
+	bool "Enable ngx_stream_realip_module"
+	default n
+	help
+		The ngx_stream_realip_module module is used to change the client address 
+		and port to the ones sent in the PROXY protocol header.  The PROXY protocol 
+		must be previously enabled by setting the proxy_protocol parameter in the 
+		listen directive. 
+
+config LIBNGINX_STREAM_ACCESS
+	bool "Enable ngx_stream_access_module"
+	default y
+	help
+		The ngx_stream_access_module module allows limiting access to certain 
+		client addresses.
+
+config LIBNGINX_STREAM_GEO
+	bool "Enable ngx_stream_geo_module"
+	default y
+	help
+		The ngx_stream_geo_module module creates variables with values depending on 
+		the client IP address. 
+
+config LIBNGINX_STREAM_GEOIP
+	bool "Enable ngx_stream_geoip_module"
+	default n
+	help
+		The ngx_stream_geoip_module module creates variables with values depending 
+		on the client IP address, using the precompiled MaxMind databases.
+		
+		When using the databases with IPv6 support, IPv4 addresses are looked up as 
+		IPv4-mapped IPv6 addresses.
+
+config LIBNGINX_STREAM_SPLIT_CLIENTS
+	bool "Enable ngx_stream_split_clients_module"
+	default y
+	help
+		The ngx_stream_split_clients_module module creates variables suitable for A/
+		B testing, also known as split testing. 
+
+config LIBNGINX_STREAM_RETURN
+	bool "Enable ngx_stream_return_module"
+	default y
+	help
+		The ngx_stream_return_module module allows sending a specified value to the 
+		client and then closing the connection. 
+
+config LIBNGINX_STREAM_UPSTREAM
+	bool "Enable ngx_stream_upstream_module"
+	default y
+	help
+		The ngx_stream_upstream_module module is used to define groups of servers 
+		that can be referenced by the proxy_pass directive. 
+
+config LIBNGINX_STREAM_UPSTREAM_LEAST_CONN
+	bool "Enable ngx_stream_upstream_least_conn_module"
+	select LIBNGINX_STREAM_UPSTREAM
+	default y
+	help
+		Specifies that a group should use a load balancing method where a 
+		connection is passed to the server with the least number of active 
+		connections, taking into account weights of servers.  If there are several 
+		such servers, they are tried in turn using a weighted round-robin balancing 
+		method. 
+
+config LIBNGINX_STREAM_UPSTREAM_RANDOM
+	bool "Enable ngx_stream_upstream_random_module"
+	select LIBNGINX_STREAM_UPSTREAM
+	default y
+	help
+		Specifies that a group should use a load balancing method where a 
+		connection is passed to a randomly selected server, taking into account 
+		weights of servers. 
+
+config LIBNGINX_STREAM_UPSTREAM_ZONE
+	bool "Enable ngx_stream_upstream_zone_module"
+	select LIBNGINX_STREAM_UPSTREAM
+	default y
+	help
+		Defines the name and size of the shared memory zone that keeps the group's 
+		configuration and run-time state that are shared between worker processes.
+
+config LIBNGINX_STREAM_SSL_PREREAD
+	bool "Enable ngx_stream_ssl_preread_module"
+	default n
+	help
+		The ngx_stream_ssl_preread_module module allows extracting information from 
+		the ClientHello message without terminating SSL/TLS, for example, the 
+		server name requested through SNI or protocols advertised in ALPN.
+endif
+endif

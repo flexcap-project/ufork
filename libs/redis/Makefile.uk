@@ -1,0 +1,241 @@
+#  SPDX-License-Identifier: BSD-3-Clause
+#
+#  Redis Makefile.uk
+#
+#  Authors: Bogdan Lascu <lascu.bogdan96@gmail.com>
+#           Costin Lupu <costin.lupu@cs.pub.ro>
+#
+#  Copyright (c) 2019, University Politehnica of Bucharest. All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted provided that the following conditions
+#  are met:
+#
+#  1. Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#  2. Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+#  3. Neither the name of the copyright holder nor the names of its
+#     contributors may be used to endorse or promote products derived from
+#     this software without specific prior written permission.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+#  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+#  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+#  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+#  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+#  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+#  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+#  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+#  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+#  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+#
+#  THIS HEADER MAY NOT BE EXTRACTED OR MODIFIED IN ANY WAY.
+#
+
+################################################################################
+# Library registration
+################################################################################
+$(eval $(call addlib_s,libredis,$(CONFIG_LIBREDIS)))
+$(eval $(call addlib_s,libredis_lua,$(CONFIG_LIBREDIS_LUA)))
+$(eval $(call addlib_s,libredis_hiredis,$(CONFIG_LIBREDIS_HIREDIS)))
+$(eval $(call addlib_s,libredis_common,$(CONFIG_LIBREDIS_COMMON)))
+$(eval $(call addlib_s,libredis_server,$(CONFIG_LIBREDIS_SERVER)))
+$(eval $(call addlib_s,libredis_client,$(CONFIG_LIBREDIS_CLIENT)))
+
+################################################################################
+# Sources
+################################################################################
+LIBREDIS_VERSION=5.0.6
+LIBREDIS_URL=https://github.com/antirez/redis/archive/$(LIBREDIS_VERSION).zip
+LIBREDIS_BASENAME=redis-$(LIBREDIS_VERSION)
+LIBREDIS_PATCHDIR=$(LIBREDIS_BASE)/patches
+$(eval $(call fetch,libredis,$(LIBREDIS_URL)))
+$(eval $(call patch,libredis,$(LIBREDIS_PATCHDIR),$(LIBREDIS_BASENAME)))
+
+################################################################################
+# Helpers
+################################################################################
+LIBREDIS_SRC  = $(LIBREDIS_ORIGIN)/$(LIBREDIS_BASENAME)/src
+LIBREDIS_DEPS = $(LIBREDIS_ORIGIN)/$(LIBREDIS_BASENAME)/deps
+
+################################################################################
+# Library includes
+################################################################################
+CINCLUDES-y   += -I$(LIBREDIS_BASE)/include
+CXXINCLUDES-y += -I$(LIBREDIS_BASE)/include
+
+LIBREDIS_CINCLUDES-$(CONFIG_LIBREDIS_HIREDIS) += -I$(LIBREDIS_DEPS)/hiredis
+LIBREDIS_CINCLUDES-$(CONFIG_LIBREDIS_LUA) += -I$(LIBREDIS_DEPS)/lua/src
+
+################################################################################
+# Flags
+################################################################################
+# Suppress some warnings to make the build process look neater
+LIBREDIS_FLAGS_SUPPRESS = -Wno-unused-parameter -Wno-unused-variable \
+	-Wno-unused-value -Wno-implicit-fallthrough -Wno-char-subscripts \
+	-Wno-misleading-indentation
+LIBREDIS_CFLAGS-y += $(LIBREDIS_FLAGS_SUPPRESS) $(LIBREDIS_CFLAGS_EXTRA)
+
+################################################################################
+# Redis internal Lua
+################################################################################
+LIBREDIS_LUA_CFLAGS-y += $(LIBREDIS_CFLAGS-y)
+LIBREDIS_LUA_CFLAGS-y += -DLUA_ANSI -DENABLE_CJSON_GLOBAL -DREDIS_STATIC=''
+
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/fpconv.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lapi.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lauxlib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lbaselib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lcode.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/ldblib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/ldebug.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/ldo.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/ldump.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lfunc.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lgc.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/linit.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/liolib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/llex.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lmathlib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lmem.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/loadlib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lobject.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lopcodes.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/loslib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lparser.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lstate.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lstring.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lstrlib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/ltable.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/ltablib.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/ltm.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lua_bit.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lua_cjson.c
+LIBREDIS_LUA_LUA_CJSON_FLAGS-y += -Wno-sign-compare
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lua_cmsgpack.c
+LIBREDIS_LUA_LUA_CMSGPACK_FLAGS-y += -Wno-sign-compare
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lua_struct.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lundump.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lvm.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/lzio.c
+LIBREDIS_LUA_SRCS-y += $(LIBREDIS_DEPS)/lua/src/strbuf.c
+
+################################################################################
+# Redis internal Hiredis
+################################################################################
+LIBREDIS_HIREDIS_CFLAGS-y += $(LIBREDIS_CFLAGS-y)
+
+LIBREDIS_HIREDIS_SRCS-y += $(LIBREDIS_DEPS)/hiredis/async.c
+LIBREDIS_HIREDIS_SRCS-y += $(LIBREDIS_DEPS)/hiredis/hiredis.c
+LIBREDIS_HIREDIS_SRCS-y += $(LIBREDIS_DEPS)/hiredis/net.c
+LIBREDIS_HIREDIS_SRCS-y += $(LIBREDIS_DEPS)/hiredis/read.c
+#LIBREDIS_HIREDIS_SRCS-y += $(LIBREDIS_DEPS)/hiredis/sds.c
+LIBREDIS_HIREDIS_SRCS-y += $(LIBREDIS_SRC)/sds.c
+
+################################################################################
+# Functionality shared between server and client
+################################################################################
+LIBREDIS_COMMON_CFLAGS-y    += $(LIBREDIS_CFLAGS-y)
+LIBREDIS_COMMON_CFLAGS-y    += -Wno-missing-field-initializers
+LIBREDIS_COMMON_CFLAGS-y    += -DREDIS_STATIC=''
+LIBREDIS_COMMON_CINCLUDES-y += $(LIBREDIS_CINCLUDES-y)
+
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/adlist.c
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/ae.c
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/anet.c
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/crc16.c
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/crc64.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/debug.c
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/dict.c
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/release.c
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/siphash.c
+LIBREDIS_COMMON_SRCS-y += $(LIBREDIS_SRC)/zmalloc.c
+
+LIBREDIS_COMMON_SRCS-$(CONFIG_LIBREDIS_MAIN_FUNCTION) += $(LIBREDIS_BASE)/main.c|unikraft
+
+################################################################################
+# Redis server
+################################################################################
+LIBREDIS_SERVER_CFLAGS-y    += $(LIBREDIS_COMMON_CFLAGS-y)
+LIBREDIS_SERVER_CINCLUDES-y += $(LIBREDIS_COMMON_CINCLUDES-y)
+
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/aof.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/bio.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/bitops.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/blocked.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/childinfo.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/cluster.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/config.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/db.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/defrag.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/endianconv.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/evict.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/expire.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/geo.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/geohash.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/geohash_helper.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/hyperloglog.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/intset.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/latency.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/lazyfree.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/listpack.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/localtime.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/lolwut.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/lolwut5.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/lzf_c.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/lzf_d.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/memtest.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/module.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/multi.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/networking.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/notify.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/object.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/pqsort.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/pubsub.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/quicklist.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/rand.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/rax.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/rdb.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/redis-check-aof.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/redis-check-rdb.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/replication.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/rio.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/scripting.c
+#LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/sds.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/sentinel.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/server.c
+LIBREDIS_SERVER_SERVER_FLAGS-y += -Dmain=redis_server_main
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/setproctitle.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/sha1.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/slowlog.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/sort.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/sparkline.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/syncio.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/t_hash.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/t_list.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/t_set.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/t_stream.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/t_string.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/t_zset.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/util.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/ziplist.c
+LIBREDIS_SERVER_SRCS-y += $(LIBREDIS_SRC)/zipmap.c
+
+################################################################################
+# Redis client
+################################################################################
+LIBREDIS_CLIENT_CFLAGS-y    += $(LIBREDIS_COMMON_CFLAGS-y)
+LIBREDIS_CLIENT_CINCLUDES-y += $(LIBREDIS_COMMON_CINCLUDES-y)
+LIBREDIS_CLIENT_CINCLUDES-y += -I$(LIBREDIS_DEPS)/linenoise
+
+LIBREDIS_CLIENT_SRCS-y += $(LIBREDIS_SRC)/redis-cli.c
+LIBREDIS_CLIENT_REDIS-CLI_FLAGS-y += -Dmain=redis_client_main
+LIBREDIS_CLIENT_SRCS-y += $(LIBREDIS_DEPS)/linenoise/linenoise.c
+
+LIBREDIS_COMMON_LDFLAGS-y += -T $(LIBREDIS_BASE)/flexos_extra.ld
+LIBREDIS_SERVER_LDFLAGS-y += -T $(LIBREDIS_BASE)/flexos_extra.ld
+LIBREDIS_HIREDIS_LDFLAGS-y += -T $(LIBREDIS_BASE)/flexos_extra.ld
+LIBREDIS_LUA_LDFLAGS-y += -T $(LIBREDIS_BASE)/flexos_extra.ld

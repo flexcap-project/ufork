@@ -1,0 +1,8 @@
+/root/.unikraft/apps/redis/build/libukboot/boot.o
+/root/.unikraft/apps/redis/build/libukboot/boot.d
+/root/.unikraft/apps/redis/build/libukboot/version.o
+/root/.unikraft/apps/redis/build/libukboot/version.d
+/root/.unikraft/apps/redis/build/libukboot/banner.o
+/root/.unikraft/apps/redis/build/libukboot/banner.d
+/root/.unikraft/apps/redis/build/libukboot.ld.o
+/root/.unikraft/apps/redis/build/libukboot.o

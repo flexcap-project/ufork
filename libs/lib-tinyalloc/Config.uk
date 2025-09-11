@@ -1,0 +1,39 @@
+# Invisible option that is used to detect
+# if LIBTINYALLOC is availbale for configuration
+config LIBTINYALLOC_INCLUDED
+	   bool
+	   default y
+
+menuconfig LIBTINYALLOC
+	   bool "tinyalloc - sequential fit, linked list based tiny allocator"
+	   select LIBUKALLOC_IFMALLOC
+	   default n
+
+if LIBTINYALLOC
+	config LIBTINYALLOC_DISABLE_SPLIT
+		bool "Disable block splitting"
+		default n
+		help
+			If splitting is enabled, split blocks according to split
+			threshold.
+
+	config LIBTINYALLOC_DISABLE_COMPACT
+		bool "Disable block compaction"
+		default n
+		help
+			If compaction is enabled, sort blocks into the free
+			list, merge if appropriate. Otherwise blocks are just
+			added as new head of the free list.
+
+	config LIBTINYALLOC_HEAP_BLOCKS
+		int "Number of available heap blocks"
+		default 2048
+
+	config LIBTINYALLOC_SPLIT_THRESH
+		int "Split threshold, in bytes"
+		default 16
+
+	config LIBTINYALLOC_ALIGNMENT
+		int "Standard allocation alignment, in bytes"
+		default 8
+endif

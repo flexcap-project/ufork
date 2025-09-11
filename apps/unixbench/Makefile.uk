@@ -1,0 +1,5 @@
+$(eval $(call addlib,appunixbench))
+#APPUNIXBENCH_SRCS-y += $(APPUNIXBENCH_BASE)/context1.c
+APPUNIXBENCH_SRCS-y += $(APPUNIXBENCH_BASE)/spawn.c
+
+APPUNIXBENCH_LDFLAGS-y += -T $(APPUNIXBENCH_BASE)/flexos_extra.ld

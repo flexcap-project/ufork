@@ -1,0 +1,6 @@
+name        := "tinyalloc"
+description := "Tiny replacement for malloc/free in unmanaged, linear memory situations, e.g. WebAssembly and embedded devices."
+gitrepo     := "https://github.com/thi-ng/tinyalloc.git"
+homepage    := "https://github.com/thi-ng/tinyalloc/"
+license     := "Apache-2.0"
+version     := 96450f3 sha256:dac10a3a017d420f51d9027bec0ce9b431e4b59533d3daed765c11abd08707e0 https://github.com/thi-ng/tinyalloc/archive/96450f3.tar.gz

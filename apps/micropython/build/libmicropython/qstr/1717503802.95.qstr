@@ -1,0 +1,7 @@
+Q(__name__)
+Q(nrf)
+Q(dcdc)
+Q(Flash)
+Q(unused_flash_start)
+Q(unused_flash_length)
+Q(nrf)

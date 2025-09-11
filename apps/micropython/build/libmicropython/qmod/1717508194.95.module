@@ -1,0 +1,1 @@
+MP_REGISTER_MODULE(MP_QSTR_btree, mp_module_btree);

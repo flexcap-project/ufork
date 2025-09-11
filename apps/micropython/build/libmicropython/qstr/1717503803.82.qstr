@@ -1,0 +1,4 @@
+Q(handleConnection)
+Q(handleNotification)
+Q(handleDiscovery)
+Q(DefaultDelegate)

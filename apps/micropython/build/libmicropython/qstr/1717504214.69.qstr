@@ -1,0 +1,8 @@
+Q(getCharacteristic)
+Q(addCharacteristic)
+Q(getCharacteristics)
+Q(peripheral)
+Q(uuid)
+Q(PRIMARY)
+Q(SECONDARY)
+Q(Service)

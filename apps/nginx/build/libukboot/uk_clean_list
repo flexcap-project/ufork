@@ -1,0 +1,6 @@
+/root/.unikraft/apps/nginx/build/libukboot/boot.o
+/root/.unikraft/apps/nginx/build/libukboot/boot.d
+/root/.unikraft/apps/nginx/build/libukboot/version.o
+/root/.unikraft/apps/nginx/build/libukboot/version.d
+/root/.unikraft/apps/nginx/build/libukboot.ld.o
+/root/.unikraft/apps/nginx/build/libukboot.o

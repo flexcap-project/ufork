@@ -1,0 +1,138 @@
+--- extmod/modlwip.c	2017-08-23 03:50:08.000000000 +0200
++++ extmod/modlwip.c	2019-10-08 09:30:52.025714373 +0200
+@@ -29,6 +29,16 @@
+ #include <string.h>
+ #include <stdio.h>
+ 
++#include <uk/print.h>
++#include <netif/uknetdev.h>
++
++#include "lwip/init.h"
++#include "lwip/timeouts.h"
++#include "lwip/tcp.h"
++#include "lwip/udp.h"
++#include "lwip/dns.h"
++#include "lwip/igmp.h"
++
+ #include "py/nlr.h"
+ #include "py/objlist.h"
+ #include "py/runtime.h"
+@@ -38,20 +48,7 @@
+ 
+ #include "lib/netutils/netutils.h"
+ 
+-#include "lwip/init.h"
+-#include "lwip/timers.h"
+-#include "lwip/tcp.h"
+-#include "lwip/udp.h"
+-//#include "lwip/raw.h"
+-#include "lwip/dns.h"
+-#include "lwip/tcp_impl.h"
+-#include "lwip/igmp.h"
+-
+-#if 0 // print debugging info
+-#define DEBUG_printf DEBUG_printf
+-#else // don't print debugging info
+-#define DEBUG_printf(...) (void)0
+-#endif
++#define DEBUG_printf uk_pr_debug
+ 
+ // All socket options should be globally distinct,
+ // because we ignore option levels for efficiency.
+@@ -264,6 +261,11 @@
+ #else
+     mp_hal_delay_ms(1);
+ #endif
++
++    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! */
++    uknetdev_poll_all();
++    sys_check_timeouts();
++    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! */
+ }
+ 
+ /*******************************************************************************/
+@@ -347,6 +350,7 @@
+             // is idle.
+             tcp_poll(newpcb, _lwip_tcp_accept_finished, 1);
+         }
++	DEBUG_printf("Accepted new connection on socket %p\n", socket);
+         return ERR_OK;
+     }
+ }
+@@ -499,6 +503,7 @@
+     u16_t write_len = MIN(available, len);
+ 
+     err_t err = tcp_write(socket->pcb.tcp, buf, write_len, TCP_WRITE_FLAG_COPY);
++    DEBUG_printf("Write to socket %p @%p %u bytes: %d\n", socket, buf, write_len, err);
+ 
+     if (err != ERR_OK) {
+         *_errno = error_lookup_table[-err];
+@@ -639,6 +646,7 @@
+ STATIC mp_obj_t lwip_socket_close(mp_obj_t self_in) {
+     lwip_socket_obj_t *socket = self_in;
+     bool socket_is_listener = false;
++    err_t err;
+ 
+     if (socket->pcb.tcp == NULL) {
+         return mp_const_none;
+@@ -647,8 +655,14 @@
+         case MOD_NETWORK_SOCK_STREAM: {
+             if (socket->pcb.tcp->state == LISTEN) {
+                 socket_is_listener = true;
+-            }
+-            if (tcp_close(socket->pcb.tcp) != ERR_OK) {
++            } else {
++		/* Flush output queue */
++		tcp_output(socket->pcb.tcp);
++	    }
++
++	    err = tcp_close(socket->pcb.tcp);
++	    DEBUG_printf("Closed socket %p: %d\n", socket, err);
++            if (err != ERR_OK) {
+                 DEBUG_printf("lwip_close: had to call tcp_abort()\n");
+                 tcp_abort(socket->pcb.tcp);
+             }
+@@ -663,6 +677,7 @@
+         if (!socket_is_listener) {
+             pbuf_free(socket->incoming.pbuf);
+         } else {
++	    DEBUG_printf("Abort incoming connection request %p\n", socket->incoming.connection);
+             tcp_abort(socket->incoming.connection);
+         }
+         socket->incoming.pbuf = NULL;
+@@ -753,9 +770,11 @@
+                 mp_raise_OSError(MP_ETIMEDOUT);
+             }
+         } else {
++	    DEBUG_printf("Wait for connection on socket %p\n", socket);
+             while (socket->incoming.connection == NULL) {
+                 poll_sockets();
+             }
++	    DEBUG_printf("Done\n");
+         }
+     }
+ 
+@@ -1254,6 +1276,7 @@
+ STATIC nic_poll_t lwip_poll_list;
+ 
+ void mod_lwip_register_poll(void (* poll)(void *arg), void *poll_arg) {
++    DEBUG_printf("Register poll: %p (argp %p)\n", poll, poll_arg);
+     lwip_poll_list.poll = poll;
+     lwip_poll_list.poll_arg = poll_arg;
+ }
+@@ -1350,13 +1380,13 @@
+ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(lwip_getaddrinfo_obj, 2, 6, lwip_getaddrinfo);
+ 
+ // Debug functions
+-
++/*
+ STATIC mp_obj_t lwip_print_pcbs() {
+     tcp_debug_print_pcbs();
+     return mp_const_none;
+ }
+ MP_DEFINE_CONST_FUN_OBJ_0(lwip_print_pcbs_obj, lwip_print_pcbs);
+-
++*/
+ #ifdef MICROPY_PY_LWIP
+ 
+ STATIC const mp_rom_map_elem_t mp_module_lwip_globals_table[] = {

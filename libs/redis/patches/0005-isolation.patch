@@ -1,0 +1,800 @@
+diff --color -urNp redis-5.0.6/deps/hiredis/net.c redis-5.0.6-flexos/deps/hiredis/net.c
+--- redis-5.0.6/deps/hiredis/net.c	2021-07-12 11:07:57.457746556 +0200
++++ redis-5.0.6-flexos/deps/hiredis/net.c	2021-07-12 11:07:53.409788045 +0200
+@@ -33,6 +33,7 @@
+  */
+ 
+ #include "fmacros.h"
++#include <flexos/isolation.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <sys/select.h>
+@@ -75,8 +76,9 @@ static void __redisSetErrorFromErrno(red
+ }
+ 
+ static int redisSetReuseAddr(redisContext *c) {
+-    int on = 1;
+-    if (setsockopt(c->fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1) {
++    int on = 1, ret;
++    flexos_gate_r(liblwip, ret, setsockopt, c->fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
++    if (ret == -1) {
+         __redisSetErrorFromErrno(c,REDIS_ERR_IO,NULL);
+         redisContextCloseFd(c);
+         return REDIS_ERR;
+@@ -86,7 +88,8 @@ static int redisSetReuseAddr(redisContex
+ 
+ static int redisCreateSocket(redisContext *c, int type) {
+     int s;
+-    if ((s = socket(type, SOCK_STREAM, 0)) == -1) {
++    flexos_gate_r(liblwip, s, socket, type, SOCK_STREAM, 0);
++    if (s == -1) {
+         __redisSetErrorFromErrno(c,REDIS_ERR_IO,NULL);
+         return REDIS_ERR;
+     }
+@@ -128,7 +131,9 @@ int redisKeepAlive(redisContext *c, int
+     int val = 1;
+     int fd = c->fd;
+ 
+-    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1){
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val));
++    if (ret == -1) {
+         __redisSetError(c,REDIS_ERR_OTHER,strerror(errno));
+         return REDIS_ERR;
+     }
+@@ -143,20 +148,23 @@ int redisKeepAlive(redisContext *c, int
+ #else
+ #if defined(__GLIBC__) && !defined(__FreeBSD_kernel__)
+     val = interval;
+-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0) {
++    flexos_gate_r(liblwip, ret, setsockopt, fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val));
++    if (ret < 0) {
+         __redisSetError(c,REDIS_ERR_OTHER,strerror(errno));
+         return REDIS_ERR;
+     }
+ 
+     val = interval/3;
+     if (val == 0) val = 1;
+-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0) {
++    flexos_gate_r(liblwip, ret, setsockopt, fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val));
++    if (ret < 0) {
+         __redisSetError(c,REDIS_ERR_OTHER,strerror(errno));
+         return REDIS_ERR;
+     }
+ 
+     val = 3;
+-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0) {
++    flexos_gate_r(liblwip, ret, setsockopt, fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val));
++    if (ret < 0) {
+         __redisSetError(c,REDIS_ERR_OTHER,strerror(errno));
+         return REDIS_ERR;
+     }
+@@ -167,8 +175,9 @@ int redisKeepAlive(redisContext *c, int
+ }
+ 
+ static int redisSetTcpNoDelay(redisContext *c) {
+-    int yes = 1;
+-    if (setsockopt(c->fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes)) == -1) {
++    int yes = 1, ret;
++    flexos_gate_r(liblwip, ret, setsockopt, c->fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
++    if (ret == -1) {
+         __redisSetErrorFromErrno(c,REDIS_ERR_IO,"setsockopt(TCP_NODELAY)");
+         redisContextCloseFd(c);
+         return REDIS_ERR;
+@@ -251,11 +260,14 @@ int redisCheckSocketError(redisContext *
+ }
+ 
+ int redisContextSetTimeout(redisContext *c, const struct timeval tv) {
+-    if (setsockopt(c->fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv)) == -1) {
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, c->fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
++    if (ret == -1) {
+         __redisSetErrorFromErrno(c,REDIS_ERR_IO,"setsockopt(SO_RCVTIMEO)");
+         return REDIS_ERR;
+     }
+-    if (setsockopt(c->fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv)) == -1) {
++    flexos_gate_r(liblwip, ret, setsockopt, c->fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
++    if (ret == -1) {
+         __redisSetErrorFromErrno(c,REDIS_ERR_IO,"setsockopt(SO_SNDTIMEO)");
+         return REDIS_ERR;
+     }
+@@ -327,16 +339,19 @@ static int _redisContextConnectTcp(redis
+      * as this would add latency to every connect. Otherwise a more sensible
+      * route could be: Use IPv6 if both addresses are available and there is IPv6
+      * connectivity. */
+-    if ((rv = getaddrinfo(c->tcp.host,_port,&hints,&servinfo)) != 0) {
++    flexos_gate_r(liblwip, rv, getaddrinfo, c->tcp.host,_port,&hints,&servinfo);
++    if (rv != 0) {
+          hints.ai_family = AF_INET6;
+-         if ((rv = getaddrinfo(addr,_port,&hints,&servinfo)) != 0) {
++         flexos_gate_r(liblwip, rv, getaddrinfo, addr,_port,&hints,&servinfo);
++         if (rv != 0) {
+             __redisSetError(c,REDIS_ERR_OTHER,gai_strerror(rv));
+             return REDIS_ERR;
+         }
+     }
+     for (p = servinfo; p != NULL; p = p->ai_next) {
+ addrretry:
+-        if ((s = socket(p->ai_family,p->ai_socktype,p->ai_protocol)) == -1)
++        flexos_gate_r(liblwip, s, socket, p->ai_family,p->ai_socktype,p->ai_protocol);
++        if (s == -1)
+             continue;
+ 
+         c->fd = s;
+@@ -345,7 +360,8 @@ addrretry:
+         if (c->tcp.source_addr) {
+             int bound = 0;
+             /* Using getaddrinfo saves us from self-determining IPv4 vs IPv6 */
+-            if ((rv = getaddrinfo(c->tcp.source_addr, NULL, &hints, &bservinfo)) != 0) {
++            flexos_gate_r(liblwip, rv, getaddrinfo, c->tcp.source_addr, NULL, &hints, &bservinfo);
++            if (rv != 0) {
+                 char buf[128];
+                 snprintf(buf,sizeof(buf),"Can't get addr: %s",gai_strerror(rv));
+                 __redisSetError(c,REDIS_ERR_OTHER,buf);
+@@ -353,9 +369,11 @@ addrretry:
+             }
+ 
+             if (reuseaddr) {
++                int ret;
+                 n = 1;
+-                if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char*) &n,
+-                               sizeof(n)) < 0) {
++                flexos_gate_r(liblwip, ret, setsockopt, s, SOL_SOCKET, SO_REUSEADDR, (char*) &n,
++                               sizeof(n));
++                if (ret < 0) {
+                     goto error;
+                 }
+             }
+diff --color -urNp redis-5.0.6/src/ae.c redis-5.0.6-flexos/src/ae.c
+--- redis-5.0.6/src/ae.c	2021-07-12 11:07:57.461746514 +0200
++++ redis-5.0.6-flexos/src/ae.c	2021-07-12 11:08:32.457387793 +0200
+@@ -44,6 +44,25 @@
+ #include "zmalloc.h"
+ #include "config.h"
+ 
++#include <flexos/isolation.h>
++
++int gettimeofday(struct timeval *tv, void *tz);
++static inline int gettimeofday_wrapper(struct timeval *tv, void *tz)
++{
++	int now;
++	struct timeval _ptimeval __attribute__((flexos_whitelist));
++	/* this argument is actually obsolete */
++	/* UK_CTASSERT(tz == NULL); */
++
++	flexos_gate_r(libuktime, now, gettimeofday, &_ptimeval, NULL);
++	tv->tv_sec = _ptimeval.tv_sec;
++	tv->tv_usec = _ptimeval.tv_usec;
++
++	return now;
++}
++
++#define gettimeofday(...) gettimeofday_wrapper(__VA_ARGS__)
++
+ /* Include the best multiplexing layer supported by this system.
+  * The following should be ordered by performances, descending. */
+ #ifdef HAVE_EVPORT
+@@ -341,6 +360,7 @@ static int processTimeEvents(aeEventLoop
+     return processed;
+ }
+ 
++static struct timeval tv __section(".data_shared"), *tvp __section(".data_shared");
+ /* Process every pending time event, then every pending file event
+  * (that may be registered by time event callbacks just processed).
+  * Without special flags the function sleeps until some file event
+@@ -370,7 +390,6 @@ int aeProcessEvents(aeEventLoop *eventLo
+         ((flags & AE_TIME_EVENTS) && !(flags & AE_DONT_WAIT))) {
+         int j;
+         aeTimeEvent *shortest = NULL;
+-        struct timeval tv, *tvp;
+ 
+         if (flags & AE_TIME_EVENTS && !(flags & AE_DONT_WAIT))
+             shortest = aeSearchNearestTimer(eventLoop);
+@@ -513,3 +532,5 @@ void aeSetBeforeSleepProc(aeEventLoop *e
+ void aeSetAfterSleepProc(aeEventLoop *eventLoop, aeBeforeSleepProc *aftersleep) {
+     eventLoop->aftersleep = aftersleep;
+ }
++
++#undef gettimeofday
+diff --color -urNp redis-5.0.6/src/ae_select.c redis-5.0.6-flexos/src/ae_select.c
+--- redis-5.0.6/src/ae_select.c	2021-07-12 11:07:57.469746431 +0200
++++ redis-5.0.6-flexos/src/ae_select.c	2021-07-12 11:07:54.045781527 +0200
+@@ -39,8 +39,10 @@ typedef struct aeApiState {
+     fd_set _rfds, _wfds;
+ } aeApiState;
+ 
++#include <flexos/isolation.h>
++
+ static int aeApiCreate(aeEventLoop *eventLoop) {
+-    aeApiState *state = zmalloc(sizeof(aeApiState));
++    aeApiState *state = flexos_calloc_whitelist(1, sizeof(aeApiState));
+ 
+     if (!state) return -1;
+     FD_ZERO(&state->rfds);
+@@ -81,8 +83,10 @@ static int aeApiPoll(aeEventLoop *eventL
+     memcpy(&state->_rfds,&state->rfds,sizeof(fd_set));
+     memcpy(&state->_wfds,&state->wfds,sizeof(fd_set));
+ 
+-    retval = select(eventLoop->maxfd+1,
+-                &state->_rfds,&state->_wfds,NULL,tvp);
++    volatile int nfds = eventLoop->maxfd+1;
++    fd_set *readfds = &state->_rfds;
++    fd_set *exceptfds = &state->_wfds;
++    flexos_gate_r(liblwip, retval, select, nfds,readfds,exceptfds,NULL,tvp);
+     if (retval > 0) {
+         for (j = 0; j <= eventLoop->maxfd; j++) {
+             int mask = 0;
+diff --color -urNp redis-5.0.6/src/anet.c redis-5.0.6-flexos/src/anet.c
+--- redis-5.0.6/src/anet.c	2021-07-12 11:07:57.473746391 +0200
++++ redis-5.0.6-flexos/src/anet.c	2021-07-12 11:07:54.053781445 +0200
+@@ -30,6 +30,7 @@
+ 
+ #include "fmacros.h"
+ 
++#include <flexos/isolation.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <sys/stat.h>
+@@ -94,9 +95,11 @@ int anetBlock(char *err, int fd) {
+  * the probe send time, interval, and count. */
+ int anetKeepAlive(char *err, int fd, int interval)
+ {
+-    int val = 1;
++    int val __attribute__((flexos_whitelist)) = 1;
+ 
+-    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val));
++    if (ret == -1)
+     {
+         anetSetError(err, "setsockopt SO_KEEPALIVE: %s", strerror(errno));
+         return ANET_ERR;
+@@ -109,7 +112,9 @@ int anetKeepAlive(char *err, int fd, int
+ 
+     /* Send first probe after interval. */
+     val = interval;
+-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0) {
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val));
++    if (ret < 0) {
+         anetSetError(err, "setsockopt TCP_KEEPIDLE: %s\n", strerror(errno));
+         return ANET_ERR;
+     }
+@@ -119,7 +124,9 @@ int anetKeepAlive(char *err, int fd, int
+      * an error (see the next setsockopt call). */
+     val = interval/3;
+     if (val == 0) val = 1;
+-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0) {
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val));
++    if (ret < 0) {
+         anetSetError(err, "setsockopt TCP_KEEPINTVL: %s\n", strerror(errno));
+         return ANET_ERR;
+     }
+@@ -127,7 +134,9 @@ int anetKeepAlive(char *err, int fd, int
+     /* Consider the socket in error state after three we send three ACK
+      * probes without getting a reply. */
+     val = 3;
+-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0) {
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val));
++    if (ret < 0) {
+         anetSetError(err, "setsockopt TCP_KEEPCNT: %s\n", strerror(errno));
+         return ANET_ERR;
+     }
+@@ -140,7 +149,10 @@ int anetKeepAlive(char *err, int fd, int
+ 
+ static int anetSetTcpNoDelay(char *err, int fd, int val)
+ {
+-    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) == -1)
++    int _val __attribute__((flexos_whitelist)) = val;
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, IPPROTO_TCP, TCP_NODELAY, &_val, sizeof(_val));
++    if (ret == -1)
+     {
+         anetSetError(err, "setsockopt TCP_NODELAY: %s", strerror(errno));
+         return ANET_ERR;
+@@ -161,7 +173,9 @@ int anetDisableTcpNoDelay(char *err, int
+ 
+ int anetSetSendBuffer(char *err, int fd, int buffsize)
+ {
+-    if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &buffsize, sizeof(buffsize)) == -1)
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, SOL_SOCKET, SO_SNDBUF, &buffsize, sizeof(buffsize));
++    if (ret == -1)
+     {
+         anetSetError(err, "setsockopt SO_SNDBUF: %s", strerror(errno));
+         return ANET_ERR;
+@@ -172,7 +186,9 @@ int anetSetSendBuffer(char *err, int fd,
+ int anetTcpKeepAlive(char *err, int fd)
+ {
+     int yes = 1;
+-    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &yes, sizeof(yes)) == -1) {
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, SOL_SOCKET, SO_KEEPALIVE, &yes, sizeof(yes));
++    if (ret == -1) {
+         anetSetError(err, "setsockopt SO_KEEPALIVE: %s", strerror(errno));
+         return ANET_ERR;
+     }
+@@ -186,7 +202,9 @@ int anetSendTimeout(char *err, int fd, l
+ 
+     tv.tv_sec = ms/1000;
+     tv.tv_usec = (ms%1000)*1000;
+-    if (setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) == -1) {
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
++    if (ret == -1) {
+         anetSetError(err, "setsockopt SO_SNDTIMEO: %s", strerror(errno));
+         return ANET_ERR;
+     }
+@@ -211,7 +229,8 @@ int anetGenericResolve(char *err, char *
+     hints.ai_family = AF_UNSPEC;
+     hints.ai_socktype = SOCK_STREAM;  /* specify socktype to avoid dups */
+ 
+-    if ((rv = getaddrinfo(host, NULL, &hints, &info)) != 0) {
++    flexos_gate_r(liblwip, rv, getaddrinfo, host, NULL, &hints, &info);
++    if (rv != 0) {
+         anetSetError(err, "%s", gai_strerror(rv));
+         return ANET_ERR;
+     }
+@@ -236,10 +255,12 @@ int anetResolveIP(char *err, char *host,
+ }
+ 
+ static int anetSetReuseAddr(char *err, int fd) {
+-    int yes = 1;
++    int yes __attribute__((flexos_whitelist)) = 1;
+     /* Make sure connection-intensive things like the redis benchmark
+      * will be able to close/open sockets a zillion of times */
+-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
++    if (ret == -1) {
+         anetSetError(err, "setsockopt SO_REUSEADDR: %s", strerror(errno));
+         return ANET_ERR;
+     }
+@@ -248,7 +269,8 @@ static int anetSetReuseAddr(char *err, i
+ 
+ static int anetCreateSocket(char *err, int domain) {
+     int s;
+-    if ((s = socket(domain, SOCK_STREAM, 0)) == -1) {
++    flexos_gate_r(liblwip, s, socket, domain, SOCK_STREAM, 0);
++    if (s == -1) {
+         anetSetError(err, "creating socket: %s", strerror(errno));
+         return ANET_ERR;
+     }
+@@ -277,7 +299,8 @@ static int anetTcpGenericConnect(char *e
+     hints.ai_family = AF_UNSPEC;
+     hints.ai_socktype = SOCK_STREAM;
+ 
+-    if ((rv = getaddrinfo(addr,portstr,&hints,&servinfo)) != 0) {
++    flexos_gate_r(liblwip, rv, getaddrinfo, addr,portstr,&hints,&servinfo);
++    if (rv != 0) {
+         anetSetError(err, "%s", gai_strerror(rv));
+         return ANET_ERR;
+     }
+@@ -285,7 +308,8 @@ static int anetTcpGenericConnect(char *e
+         /* Try to create the socket and to connect it.
+          * If we fail in the socket() call, or on connect(), we retry with
+          * the next entry in servinfo. */
+-        if ((s = socket(p->ai_family,p->ai_socktype,p->ai_protocol)) == -1)
++        flexos_gate_r(liblwip, s, socket, p->ai_family,p->ai_socktype,p->ai_protocol);
++        if (s == -1)
+             continue;
+         if (anetSetReuseAddr(err,s) == ANET_ERR) goto error;
+         if (flags & ANET_CONNECT_NONBLOCK && anetNonBlock(err,s) != ANET_OK)
+@@ -293,7 +317,8 @@ static int anetTcpGenericConnect(char *e
+         if (source_addr) {
+             int bound = 0;
+             /* Using getaddrinfo saves us from self-determining IPv4 vs IPv6 */
+-            if ((rv = getaddrinfo(source_addr, NULL, &hints, &bservinfo)) != 0)
++            flexos_gate_r(liblwip, rv, getaddrinfo, source_addr, NULL, &hints, &bservinfo);
++            if (rv != 0)
+             {
+                 anetSetError(err, "%s", gai_strerror(rv));
+                 goto error;
+@@ -438,13 +463,17 @@ int anetWrite(int fd, char *buf, int cou
+ }
+ 
+ static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len, int backlog) {
+-    if (bind(s,sa,len) == -1) {
++    int ret;
++
++    flexos_gate_r(liblwip, ret, bind, s,sa,len);
++    if (ret == -1) {
+         anetSetError(err, "bind: %s", strerror(errno));
+         close(s);
+         return ANET_ERR;
+     }
+ 
+-    if (listen(s, backlog) == -1) {
++    flexos_gate_r(liblwip, ret, listen, s, backlog);
++    if (ret == -1) {
+         anetSetError(err, "listen: %s", strerror(errno));
+         close(s);
+         return ANET_ERR;
+@@ -453,8 +482,10 @@ static int anetListen(char *err, int s,
+ }
+ 
+ static int anetV6Only(char *err, int s) {
+-    int yes = 1;
+-    if (setsockopt(s,IPPROTO_IPV6,IPV6_V6ONLY,&yes,sizeof(yes)) == -1) {
++    int yes __attribute__((flexos_whitelist)) = 1;
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, s,IPPROTO_IPV6,IPV6_V6ONLY,&yes,sizeof(yes));
++    if (ret == -1) {
+         anetSetError(err, "setsockopt: %s", strerror(errno));
+         close(s);
+         return ANET_ERR;
+@@ -465,8 +496,10 @@ static int anetV6Only(char *err, int s)
+ static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backlog)
+ {
+     int s = -1, rv;
+-    char _port[6];  /* strlen("65535") */
+-    struct addrinfo hints, *servinfo, *p;
++    char _port[6] __attribute__((flexos_whitelist));  /* strlen("65535") */
++    struct addrinfo hints __attribute__((flexos_whitelist));
++    struct addrinfo *servinfo __attribute__((flexos_whitelist));
++    struct addrinfo *p;
+ 
+     snprintf(_port,6,"%d",port);
+     memset(&hints,0,sizeof(hints));
+@@ -474,12 +507,15 @@ static int _anetTcpServer(char *err, int
+     hints.ai_socktype = SOCK_STREAM;
+     hints.ai_flags = AI_PASSIVE;    /* No effect if bindaddr != NULL */
+ 
+-    if ((rv = getaddrinfo(bindaddr,_port,&hints,&servinfo)) != 0) {
++    flexos_gate_r(liblwip, rv, getaddrinfo, bindaddr,_port,&hints,&servinfo);
++
++    if (rv != 0) {
+         anetSetError(err, "%s", gai_strerror(rv));
+         return ANET_ERR;
+     }
+     for (p = servinfo; p != NULL; p = p->ai_next) {
+-        if ((s = socket(p->ai_family,p->ai_socktype,p->ai_protocol)) == -1)
++        flexos_gate_r(liblwip, s, socket, p->ai_family,p->ai_socktype,p->ai_protocol);
++        if (s == -1)
+             continue;
+ 
+         if (af == AF_INET6 && anetV6Only(err,s) == ANET_ERR) goto error;
+@@ -496,7 +532,7 @@ error:
+     if (s != -1) close(s);
+     s = ANET_ERR;
+ end:
+-    freeaddrinfo(servinfo);
++    flexos_gate(liblwip, freeaddrinfo, servinfo);
+     return s;
+ }
+ 
+@@ -531,7 +567,7 @@ int anetUnixServer(char *err, char *path
+ static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len) {
+     int fd;
+     while(1) {
+-        fd = accept(s,sa,len);
++	flexos_gate_r(liblwip, fd, accept, s, sa, len);
+         if (fd == -1) {
+             if (errno == EINTR)
+                 continue;
+@@ -545,10 +581,10 @@ static int anetGenericAccept(char *err,
+     return fd;
+ }
+ 
++static struct sockaddr_storage sa __section(".data_shared");
++static socklen_t salen __section(".data_shared") = sizeof(sa);
+ int anetTcpAccept(char *err, int s, char *ip, size_t ip_len, int *port) {
+     int fd;
+-    struct sockaddr_storage sa;
+-    socklen_t salen = sizeof(sa);
+     if ((fd = anetGenericAccept(err,s,(struct sockaddr*)&sa,&salen)) == -1)
+         return ANET_ERR;
+ 
+@@ -577,8 +613,10 @@ int anetUnixAccept(char *err, int s) {
+ int anetPeerToString(int fd, char *ip, size_t ip_len, int *port) {
+     struct sockaddr_storage sa;
+     socklen_t salen = sizeof(sa);
++    int ret;
++    flexos_gate_r(liblwip, ret, getpeername, fd, (struct sockaddr*) &sa, &salen);
+ 
+-    if (getpeername(fd,(struct sockaddr*)&sa,&salen) == -1) goto error;
++    if (ret == -1) goto error;
+     if (ip_len == 0) goto error;
+ 
+     if (sa.ss_family == AF_INET) {
+diff --color -urNp redis-5.0.6/src/intset.c redis-5.0.6-flexos/src/intset.c
+--- redis-5.0.6/src/intset.c	2021-07-12 11:07:57.473746391 +0200
++++ redis-5.0.6-flexos/src/intset.c	2021-07-12 11:07:54.053781445 +0200
+@@ -35,6 +35,25 @@
+ #include "zmalloc.h"
+ #include "endianconv.h"
+ 
++#include <flexos/isolation.h>
++
++int gettimeofday(struct timeval *tv, void *tz);
++static inline int gettimeofday_wrapper(struct timeval *tv, void *tz)
++{
++	int now;
++	struct timeval _ptimeval __attribute__((flexos_whitelist));
++	/* this argument is actually obsolete */
++	/* UK_CTASSERT(tz == NULL); */
++
++	flexos_gate_r(libuktime, now, gettimeofday, &_ptimeval, NULL);
++	tv->tv_sec = _ptimeval.tv_sec;
++	tv->tv_usec = _ptimeval.tv_usec;
++
++	return now;
++}
++
++#define gettimeofday(...) gettimeofday_wrapper(__VA_ARGS__)
++
+ /* Note that these encodings are ordered, so:
+  * INTSET_ENC_INT16 < INTSET_ENC_INT32 < INTSET_ENC_INT64. */
+ #define INTSET_ENC_INT16 (sizeof(int16_t))
+@@ -490,3 +509,5 @@ int intsetTest(int argc, char **argv) {
+     return 0;
+ }
+ #endif
++
++#undef gettimeofday
+diff --color -urNp redis-5.0.6/src/networking.c redis-5.0.6-flexos/src/networking.c
+--- redis-5.0.6/src/networking.c	2021-07-12 11:07:57.477746349 +0200
++++ redis-5.0.6-flexos/src/networking.c	2021-07-12 11:07:54.109780871 +0200
+@@ -27,8 +27,10 @@
+  * POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++#include <flexos/isolation.h>
+ #include "server.h"
+ #include "atomicvar.h"
++#include "sdsalloc.h"
+ #include <sys/socket.h>
+ #include <sys/uio.h>
+ #include <math.h>
+@@ -84,7 +86,10 @@ void linkClient(client *c) {
+ }
+ 
+ client *createClient(int fd) {
+-    client *c = zmalloc(sizeof(client));
++    /* FLEXOS NOTE: here we are sharing the entire client structure: this is
++     * not needed! We should share the send buffer only. Come back and fix this
++     * later. */
++    client *c = flexos_malloc_whitelist(sizeof(client));
+ 
+     /* passing -1 as fd it is possible to create a non connected client.
+      * This is useful since all the commands needs to be executed
+@@ -660,6 +665,28 @@ int clientHasPendingReplies(client *c) {
+     return c->bufpos || listLength(c->reply);
+ }
+ 
++static char err[] __section(".data_shared") =
++    "-DENIED Redis is running in protected mode because protected "
++    "mode is enabled, no bind address was specified, no "
++    "authentication password is requested to clients. In this mode "
++    "connections are only accepted from the loopback interface. "
++    "If you want to connect from external computers to Redis you "
++    "may adopt one of the following solutions: "
++    "1) Just disable protected mode sending the command "
++    "'CONFIG SET protected-mode no' from the loopback interface "
++    "by connecting to Redis from the same host the server is "
++    "running, however MAKE SURE Redis is not publicly accessible "
++    "from internet if you do so. Use CONFIG REWRITE to make this "
++    "change permanent. "
++    "2) Alternatively you can just disable the protected mode by "
++    "editing the Redis configuration file, and setting the protected "
++    "mode option to 'no', and then restarting the server. "
++    "3) If you started the server manually just for testing, restart "
++    "it with the '--protected-mode no' option. "
++    "4) Setup a bind address or an authentication password. "
++    "NOTE: You only need to do one of the above things in order for "
++    "the server to start accepting connections from the outside.\r\n";
++
+ #define MAX_ACCEPTS_PER_CALL 1000
+ static void acceptCommonHandler(int fd, int flags, char *ip) {
+     client *c;
+@@ -697,27 +724,6 @@ static void acceptCommonHandler(int fd,
+         ip != NULL)
+     {
+         if (strcmp(ip,"127.0.0.1") && strcmp(ip,"::1")) {
+-            char *err =
+-                "-DENIED Redis is running in protected mode because protected "
+-                "mode is enabled, no bind address was specified, no "
+-                "authentication password is requested to clients. In this mode "
+-                "connections are only accepted from the loopback interface. "
+-                "If you want to connect from external computers to Redis you "
+-                "may adopt one of the following solutions: "
+-                "1) Just disable protected mode sending the command "
+-                "'CONFIG SET protected-mode no' from the loopback interface "
+-                "by connecting to Redis from the same host the server is "
+-                "running, however MAKE SURE Redis is not publicly accessible "
+-                "from internet if you do so. Use CONFIG REWRITE to make this "
+-                "change permanent. "
+-                "2) Alternatively you can just disable the protected mode by "
+-                "editing the Redis configuration file, and setting the protected "
+-                "mode option to 'no', and then restarting the server. "
+-                "3) If you started the server manually just for testing, restart "
+-                "it with the '--protected-mode no' option. "
+-                "4) Setup a bind address or an authentication password. "
+-                "NOTE: You only need to do one of the above things in order for "
+-                "the server to start accepting connections from the outside.\r\n";
+             if (write(c->fd,err,strlen(err)) == -1) {
+                 /* Nothing to do, Just to avoid the warning... */
+             }
+@@ -941,7 +947,7 @@ void freeClient(client *c) {
+     zfree(c->argv);
+     freeClientMultiState(c);
+     sdsfree(c->peerid);
+-    zfree(c);
++    flexos_free_whitelist(c);
+ }
+ 
+ /* Schedule a client to free it at a safe time in the serverCron() function.
+@@ -1237,7 +1243,7 @@ int processInlineBuffer(client *c) {
+             sdsfree(argv[j]);
+         }
+     }
+-    zfree(argv);
++    s_free(argv);
+     return C_OK;
+ }
+ 
+@@ -1983,7 +1989,7 @@ void rewriteClientCommandVector(client *
+ /* Completely replace the client command vector with the provided one. */
+ void replaceClientCommandVector(client *c, int argc, robj **argv) {
+     freeClientArgv(c);
+-    zfree(c->argv);
++    s_free(c->argv);
+     c->argv = argv;
+     c->argc = argc;
+     c->cmd = lookupCommandOrOriginal(c->argv[0]->ptr);
+diff --color -urNp redis-5.0.6/src/quicklist.c redis-5.0.6-flexos/src/quicklist.c
+--- redis-5.0.6/src/quicklist.c	2021-07-12 11:07:57.481746309 +0200
++++ redis-5.0.6-flexos/src/quicklist.c	2021-07-12 11:07:54.141780543 +0200
+@@ -35,6 +35,25 @@
+ #include "util.h" /* for ll2string */
+ #include "lzf.h"
+ 
++#include <flexos/isolation.h>
++
++int gettimeofday(struct timeval *tv, void *tz);
++static inline int gettimeofday_wrapper(struct timeval *tv, void *tz)
++{
++	int now;
++	struct timeval _ptimeval __attribute__((flexos_whitelist));
++	/* this argument is actually obsolete */
++	/* UK_CTASSERT(tz == NULL); */
++
++	flexos_gate_r(libuktime, now, gettimeofday, &_ptimeval, NULL);
++	tv->tv_sec = _ptimeval.tv_sec;
++	tv->tv_usec = _ptimeval.tv_usec;
++
++	return now;
++}
++
++#define gettimeofday(...) gettimeofday_wrapper(__VA_ARGS__)
++
+ #if defined(REDIS_TEST) || defined(REDIS_TEST_VERBOSE)
+ #include <stdio.h> /* for printf (debug printing), snprintf (genstr) */
+ #endif
+@@ -2649,3 +2668,5 @@ int quicklistTest(int argc, char *argv[]
+     return err;
+ }
+ #endif
++
++#undef gettimeofday
+diff --color -urNp redis-5.0.6/src/sdsalloc.h redis-5.0.6-flexos/src/sdsalloc.h
+--- redis-5.0.6/src/sdsalloc.h	2021-07-12 11:07:57.485746269 +0200
++++ redis-5.0.6-flexos/src/sdsalloc.h	2021-07-12 11:07:54.153780420 +0200
+@@ -1,6 +1,7 @@
+ /* SDSLib 2.0 -- A C dynamic strings library
+  *
+  * Copyright (c) 2006-2015, Salvatore Sanfilippo <antirez at gmail dot com>
++ * Copyright (c) 2015, Oran Agra
+  * Copyright (c) 2015, Redis Labs, Inc
+  * All rights reserved.
+  *
+@@ -36,7 +37,22 @@
+  * the include of your alternate allocator if needed (not needed in order
+  * to use the default libc allocator). */
+ 
+-#include "zmalloc.h"
+-#define s_malloc zmalloc
+-#define s_realloc zrealloc
+-#define s_free zfree
++/* FIXME FLEXOS we might share much more than we actually want here...
++ * The thing is, we have to do this in order to share recv and send
++ * buffers. But these allocators are used by other parts of the application!
++ * We should measure the quantity of shared data and potentially revisit
++ * this. */
++
++#include <flexos/isolation.h>
++
++static inline void *s_realloc(void *ptr, size_t size) {
++	return flexos_realloc_whitelist(ptr, size);
++}
++
++static inline void *s_malloc(size_t size) {
++	return flexos_malloc_whitelist(size);
++}
++
++static inline void s_free(void *ptr) {
++	flexos_free_whitelist(ptr);
++}
+diff --color -urNp redis-5.0.6/src/server.c redis-5.0.6-flexos/src/server.c
+--- redis-5.0.6/src/server.c	2021-07-12 11:07:57.489746227 +0200
++++ redis-5.0.6-flexos/src/server.c	2021-07-12 11:07:54.197779969 +0200
+@@ -56,6 +56,25 @@
+ #include <locale.h>
+ #include <sys/socket.h>
+ 
++#include <flexos/isolation.h>
++
++int gettimeofday(struct timeval *tv, void *tz);
++static inline int gettimeofday_wrapper(struct timeval *tv, void *tz)
++{
++	int now;
++	struct timeval _ptimeval __attribute__((flexos_whitelist));
++	/* this argument is actually obsolete */
++	/* UK_CTASSERT(tz == NULL); */
++
++	flexos_gate_r(libuktime, now, gettimeofday, &_ptimeval, NULL);
++	tv->tv_sec = _ptimeval.tv_sec;
++	tv->tv_usec = _ptimeval.tv_usec;
++
++	return now;
++}
++
++#define gettimeofday(...) gettimeofday_wrapper(__VA_ARGS__)
++
+ /* Our shared "common" objects */
+ 
+ struct sharedObjectsStruct shared;
+@@ -3976,7 +3995,9 @@ int redisSupervisedSystemd(void) {
+ #ifdef HAVE_MSG_NOSIGNAL
+     sendto_flags |= MSG_NOSIGNAL;
+ #endif
+-    if (sendmsg(fd, &hdr, sendto_flags) < 0) {
++    int ret;
++    flexos_gate_r(liblwip, ret, sendmsg, fd, &hdr, sendto_flags);
++    if (ret < 0) {
+         serverLog(LL_WARNING, "Can't send notification to systemd");
+         close(fd);
+         return 0;
+@@ -4203,3 +4224,5 @@ int main(int argc, char **argv) {
+ }
+ 
+ /* The End */
++
++#undef gettimeofday
+diff --color -urNp redis-5.0.6/src/util.c redis-5.0.6-flexos/src/util.c
+--- redis-5.0.6/src/util.c	2021-07-12 11:07:57.493746187 +0200
++++ redis-5.0.6-flexos/src/util.c	2021-07-12 11:07:54.201779927 +0200
+@@ -44,6 +44,25 @@
+ #include "util.h"
+ #include "sha1.h"
+ 
++#include <flexos/isolation.h>
++
++int gettimeofday(struct timeval *tv, void *tz);
++static inline int gettimeofday_wrapper(struct timeval *tv, void *tz)
++{
++	int now;
++	struct timeval _ptimeval __attribute__((flexos_whitelist));
++	/* this argument is actually obsolete */
++	/* UK_CTASSERT(tz == NULL); */
++
++	flexos_gate_r(libuktime, now, gettimeofday, &_ptimeval, NULL);
++	tv->tv_sec = _ptimeval.tv_sec;
++	tv->tv_usec = _ptimeval.tv_usec;
++
++	return now;
++}
++
++#define gettimeofday(...) gettimeofday_wrapper(__VA_ARGS__)
++
+ /* Glob-style pattern matching. */
+ int stringmatchlen(const char *pattern, int patternLen,
+         const char *string, int stringLen, int nocase)
+@@ -854,3 +873,5 @@ int utilTest(int argc, char **argv) {
+     return 0;
+ }
+ #endif
++
++#undef gettimeofday

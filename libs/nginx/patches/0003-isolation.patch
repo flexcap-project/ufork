@@ -1,0 +1,1556 @@
+diff --color -urNp nginx-1.15.6/src/core/ngx_buf.c nginx-1.15.6-flexos/src/core/ngx_buf.c
+--- nginx-1.15.6/src/core/ngx_buf.c	2021-07-12 12:05:52.378223020 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_buf.c	2021-07-12 11:58:23.034801734 +0200
+@@ -44,6 +44,41 @@ ngx_create_temp_buf(ngx_pool_t *pool, si
+ }
+ 
+ 
++ngx_buf_t *
++ngx_create_temp_buf_shared(ngx_pool_t *pool, size_t size)
++{
++    ngx_buf_t *b;
++
++    b = ngx_calloc_buf(pool);
++    if (b == NULL) {
++        return NULL;
++    }
++
++    b->start = ngx_palloc_shared(pool, size);
++    if (b->start == NULL) {
++        return NULL;
++    }
++
++    /*
++     * set by ngx_calloc_buf():
++     *
++     *     b->file_pos = 0;
++     *     b->file_last = 0;
++     *     b->file = NULL;
++     *     b->shadow = NULL;
++     *     b->tag = 0;
++     *     and flags
++     */
++
++    b->pos = b->start;
++    b->last = b->start;
++    b->end = b->last + size;
++    b->temporary = 1;
++
++    return b;
++}
++
++
+ ngx_chain_t *
+ ngx_alloc_chain_link(ngx_pool_t *pool)
+ {
+diff --color -urNp nginx-1.15.6/src/core/ngx_buf.h nginx-1.15.6-flexos/src/core/ngx_buf.h
+--- nginx-1.15.6/src/core/ngx_buf.h	2021-07-12 12:05:52.382222979 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_buf.h	2021-07-12 11:58:22.918802917 +0200
+@@ -104,6 +104,7 @@ struct ngx_output_chain_ctx_s {
+     off_t                        alignment;
+ 
+     ngx_pool_t                  *pool;
++    ngx_pool_t                  *pool_shared;
+     ngx_int_t                    allocated;
+     ngx_bufs_t                   bufs;
+     ngx_buf_tag_t                tag;
+@@ -141,11 +142,13 @@ typedef struct {
+                             (b->file_last - b->file_pos))
+ 
+ ngx_buf_t *ngx_create_temp_buf(ngx_pool_t *pool, size_t size);
++ngx_buf_t *ngx_create_temp_buf_shared(ngx_pool_t *pool, size_t size);
+ ngx_chain_t *ngx_create_chain_of_bufs(ngx_pool_t *pool, ngx_bufs_t *bufs);
+ 
+ 
+ #define ngx_alloc_buf(pool)  ngx_palloc(pool, sizeof(ngx_buf_t))
+ #define ngx_calloc_buf(pool) ngx_pcalloc(pool, sizeof(ngx_buf_t))
++#define ngx_calloc_buf_shared(pool) ngx_pcalloc_shared(pool, sizeof(ngx_buf_t))
+ 
+ ngx_chain_t *ngx_alloc_chain_link(ngx_pool_t *pool);
+ #define ngx_free_chain(pool, cl)                                             \
+diff --color -urNp nginx-1.15.6/src/core/ngx_conf_file.h nginx-1.15.6-flexos/src/core/ngx_conf_file.h
+--- nginx-1.15.6/src/core/ngx_conf_file.h	2021-07-12 12:05:52.386222939 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_conf_file.h	2021-07-12 11:58:22.922802875 +0200
+@@ -119,6 +119,7 @@ struct ngx_conf_s {
+ 
+     ngx_cycle_t          *cycle;
+     ngx_pool_t           *pool;
++    ngx_pool_t           *pool_shared;
+     ngx_pool_t           *temp_pool;
+     ngx_conf_file_t      *conf_file;
+     ngx_log_t            *log;
+diff --color -urNp nginx-1.15.6/src/core/ngx_connection.c nginx-1.15.6-flexos/src/core/ngx_connection.c
+--- nginx-1.15.6/src/core/ngx_connection.c	2021-07-12 12:05:52.390222898 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_connection.c	2021-07-12 11:58:22.926802834 +0200
+@@ -12,6 +12,48 @@
+ 
+ ngx_os_io_t  ngx_io;
+ 
++#include <flexos/isolation.h>
++
++static inline int setsockopt_wrapper(int sockfd, int level, int optname,
++             const void *optval, socklen_t optlen)
++{
++	int ret;
++	char _optval[optlen] __attribute__((flexos_whitelist));
++	memcpy(_optval, optval, optlen);
++	flexos_gate_r(liblwip, ret, setsockopt, sockfd, level, optname, _optval, optlen);
++	return ret;
++}
++
++static inline int getsockopt_wrapper(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
++{
++	int ret;
++	socklen_t *_optlen __attribute__((flexos_whitelist)) = optlen;
++	char _optval[*optlen] __attribute__((flexos_whitelist));
++	memcpy(_optval, optval, *optlen);
++	flexos_gate_r(liblwip, ret, getsockopt, sockfd, level, optname, _optval, _optlen);
++	*optlen = *_optlen;
++	return ret;
++}
++
++static inline int bind_wrapper(int sockfd, const struct sockaddr *addr,
++         socklen_t addrlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, bind, sockfd, addr, addrlen);
++	return ret;
++}
++
++static inline int listen_wrapper(int sockfd, int backlog)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, listen, sockfd, backlog);
++	return ret;
++}
++
++#define getsockopt(...) getsockopt_wrapper(__VA_ARGS__)
++#define setsockopt(...) setsockopt_wrapper(__VA_ARGS__)
++#define bind(...) bind_wrapper(__VA_ARGS__)
++#define listen(...) listen_wrapper(__VA_ARGS__)
+ 
+ static void ngx_drain_connections(ngx_cycle_t *cycle);
+ 
+@@ -32,7 +74,7 @@ ngx_create_listening(ngx_conf_t *cf, str
+ 
+     ngx_memzero(ls, sizeof(ngx_listening_t));
+ 
+-    sa = ngx_palloc(cf->pool, socklen);
++    sa = ngx_palloc(cf->pool_shared, socklen);
+     if (sa == NULL) {
+         return NULL;
+     }
+@@ -444,12 +486,13 @@ ngx_open_listening_sockets(ngx_cycle_t *
+                  * SO_REUSEPORT on the old socket before opening new ones
+                  */
+ 
+-                int  reuseport = 1;
++                int  *reuseport = uk_malloc(flexos_shared_alloc,sizeof(int));
++                *reuseport = 1;
+ 
+ #ifdef SO_REUSEPORT_LB
+ 
+                 if (setsockopt(ls[i].fd, SOL_SOCKET, SO_REUSEPORT_LB,
+-                               (const void *) &reuseport, sizeof(int))
++                               (const void *) reuseport, sizeof(int))
+                     == -1)
+                 {
+                     ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_socket_errno,
+@@ -461,7 +504,7 @@ ngx_open_listening_sockets(ngx_cycle_t *
+ #else
+ 
+                 if (setsockopt(ls[i].fd, SOL_SOCKET, SO_REUSEPORT,
+-                               (const void *) &reuseport, sizeof(int))
++                               (const void *) reuseport, sizeof(int))
+                     == -1)
+                 {
+                     ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_socket_errno,
+@@ -471,6 +514,8 @@ ngx_open_listening_sockets(ngx_cycle_t *
+ #endif
+ 
+                 ls[i].add_reuseport = 0;
++
++		uk_free(flexos_shared_alloc, reuseport);
+             }
+ #endif
+ 
+@@ -515,8 +560,8 @@ ngx_open_listening_sockets(ngx_cycle_t *
+ #if (NGX_HAVE_REUSEPORT)
+ 
+             if (ls[i].reuseport && !ngx_test_config) {
+-                int  reuseport;
+-
++                int  *_reuseport = uk_malloc(flexos_shared_alloc,sizeof(int));
++#define reuseport (*_reuseport)
+                 reuseport = 1;
+ 
+ #ifdef SO_REUSEPORT_LB
+@@ -535,6 +580,7 @@ ngx_open_listening_sockets(ngx_cycle_t *
+                                       &ls[i].addr_text);
+                     }
+ 
++                    uk_free(flexos_shared_alloc, _reuseport);
+                     return NGX_ERROR;
+                 }
+ 
+@@ -554,27 +600,32 @@ ngx_open_listening_sockets(ngx_cycle_t *
+                                       &ls[i].addr_text);
+                     }
+ 
++                    uk_free(flexos_shared_alloc, _reuseport);
+                     return NGX_ERROR;
+                 }
+ #endif
++#undef reuseport
++                uk_free(flexos_shared_alloc, _reuseport);
+             }
+ #endif
+ 
+ #if (NGX_HAVE_INET6 && defined IPV6_V6ONLY)
+ 
+             if (ls[i].sockaddr->sa_family == AF_INET6) {
+-                int  ipv6only;
++                int  *ipv6only = uk_malloc(flexos_shared_alloc,sizeof(int));
+ 
+-                ipv6only = ls[i].ipv6only;
++                *ipv6only = ls[i].ipv6only;
+ 
+                 if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
+-                               (const void *) &ipv6only, sizeof(int))
++                               (const void *) ipv6only, sizeof(int))
+                     == -1)
+                 {
+                     ngx_log_error(NGX_LOG_EMERG, log, ngx_socket_errno,
+                                   "setsockopt(IPV6_V6ONLY) %V failed, ignored",
+                                   &ls[i].addr_text);
+                 }
++
++		uk_free(flexos_shared_alloc, ipv6only);
+             }
+ #endif
+             /* TODO: close on exit */
+@@ -712,12 +763,14 @@ ngx_open_listening_sockets(ngx_cycle_t *
+ void
+ ngx_configure_listening_sockets(ngx_cycle_t *cycle)
+ {
+-    int                        value;
++    int                        *_value = uk_malloc(flexos_shared_alloc,sizeof(int));
++#define value (*_value)
+     ngx_uint_t                 i;
+     ngx_listening_t           *ls;
+ 
+ #if (NGX_HAVE_DEFERRED_ACCEPT && defined SO_ACCEPTFILTER)
+-    struct accept_filter_arg   af;
++    struct accept_filter_arg   *_af = uk_malloc(flexos_shared_alloc,sizeof(struct accept_filter_arg));
++#define af (*_af)
+ #endif
+ 
+     ls = cycle->listening.elts;
+@@ -1013,6 +1066,12 @@ ngx_configure_listening_sockets(ngx_cycl
+ #endif
+     }
+ 
++    uk_free(flexos_shared_alloc, _value);
++#undef value
++#if (NGX_HAVE_DEFERRED_ACCEPT && defined SO_ACCEPTFILTER)
++    uk_free(flexos_shared_alloc, _af);
++#undef af
++#endif
+     return;
+ }
+ 
+@@ -1411,7 +1470,7 @@ ngx_connection_local_sockaddr(ngx_connec
+ ngx_int_t
+ ngx_tcp_nodelay(ngx_connection_t *c)
+ {
+-    int  tcp_nodelay;
++    int  tcp_nodelay __attribute__((flexos_whitelist));
+ 
+     if (c->tcp_nodelay != NGX_TCP_NODELAY_UNSET) {
+         return NGX_OK;
+diff --color -urNp nginx-1.15.6/src/core/ngx_connection.h nginx-1.15.6-flexos/src/core/ngx_connection.h
+--- nginx-1.15.6/src/core/ngx_connection.h	2021-07-12 12:05:52.394222856 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_connection.h	2021-07-12 11:58:22.930802793 +0200
+@@ -140,6 +140,7 @@ struct ngx_connection_s {
+     ngx_log_t          *log;
+ 
+     ngx_pool_t         *pool;
++    ngx_pool_t         *pool_shared;
+ 
+     int                 type;
+ 
+diff --color -urNp nginx-1.15.6/src/core/ngx_cycle.c nginx-1.15.6-flexos/src/core/ngx_cycle.c
+--- nginx-1.15.6/src/core/ngx_cycle.c	2021-07-12 12:05:52.402222775 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_cycle.c	2021-07-12 11:58:22.934802753 +0200
+@@ -45,6 +45,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     ngx_time_t          *tp;
+     ngx_conf_t           conf;
+     ngx_pool_t          *pool;
++    ngx_pool_t          *pool_shared;
+     ngx_cycle_t         *cycle, **old;
+     ngx_shm_zone_t      *shm_zone, *oshm_zone;
+     ngx_list_part_t     *part, *opart;
+@@ -72,13 +73,21 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     }
+     pool->log = log;
+ 
++    /* using the same log as pool, hopefully this is fine... */
++    pool_shared = ngx_create_pool_shared(NGX_CYCLE_POOL_SIZE, log);
++    if (pool_shared == NULL) {
++        return NULL;
++    }
++
+     cycle = ngx_pcalloc(pool, sizeof(ngx_cycle_t));
+     if (cycle == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+     cycle->pool = pool;
++    cycle->pool_shared = pool_shared;
+     cycle->log = log;
+     cycle->old_cycle = old_cycle;
+ 
+@@ -86,6 +95,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     cycle->conf_prefix.data = ngx_pstrdup(pool, &old_cycle->conf_prefix);
+     if (cycle->conf_prefix.data == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -93,6 +103,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     cycle->prefix.data = ngx_pstrdup(pool, &old_cycle->prefix);
+     if (cycle->prefix.data == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -100,6 +111,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     cycle->conf_file.data = ngx_pnalloc(pool, old_cycle->conf_file.len + 1);
+     if (cycle->conf_file.data == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+     ngx_cpystrn(cycle->conf_file.data, old_cycle->conf_file.data,
+@@ -109,6 +121,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     cycle->conf_param.data = ngx_pstrdup(pool, &old_cycle->conf_param);
+     if (cycle->conf_param.data == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -119,6 +132,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+         != NGX_OK)
+     {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -129,6 +143,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+         != NGX_OK)
+     {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -149,6 +164,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+         != NGX_OK)
+     {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -168,15 +184,18 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+         != NGX_OK)
+     {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+     n = old_cycle->listening.nelts ? old_cycle->listening.nelts : 10;
+ 
+-    if (ngx_array_init(&cycle->listening, pool, n, sizeof(ngx_listening_t))
++    /* this one should be shared */
++    if (ngx_array_init(&cycle->listening, pool_shared, n, sizeof(ngx_listening_t))
+         != NGX_OK)
+     {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -189,6 +208,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     cycle->conf_ctx = ngx_pcalloc(pool, ngx_max_module * sizeof(void *));
+     if (cycle->conf_ctx == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -196,6 +216,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     if (gethostname(hostname, NGX_MAXHOSTNAMELEN) == -1) {
+         ngx_log_error(NGX_LOG_EMERG, log, ngx_errno, "gethostname() failed");
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -207,6 +228,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     cycle->hostname.data = ngx_pnalloc(pool, cycle->hostname.len);
+     if (cycle->hostname.data == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -215,6 +237,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+ 
+     if (ngx_cycle_modules(cycle) != NGX_OK) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -230,6 +253,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+             rv = module->create_conf(cycle);
+             if (rv == NULL) {
+                 ngx_destroy_pool(pool);
++        	ngx_destroy_pool_shared(pool_shared);
+                 return NULL;
+             }
+             cycle->conf_ctx[cycle->modules[i]->index] = rv;
+@@ -245,12 +269,14 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     conf.args = ngx_array_create(pool, 10, sizeof(ngx_str_t));
+     if (conf.args == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+     conf.temp_pool = ngx_create_pool(NGX_CYCLE_POOL_SIZE, log);
+     if (conf.temp_pool == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+@@ -258,6 +284,7 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
+     conf.ctx = cycle->conf_ctx;
+     conf.cycle = cycle;
+     conf.pool = pool;
++    conf.pool_shared = pool_shared;
+     conf.log = log;
+     conf.module_type = NGX_CORE_MODULE;
+     conf.cmd_type = NGX_MAIN_CONF;
+@@ -759,6 +786,7 @@ old_shm_zone_done:
+     if (ngx_process == NGX_PROCESS_MASTER || ngx_is_init_cycle(old_cycle)) {
+ 
+         ngx_destroy_pool(old_cycle->pool);
++        if (old_cycle->pool_shared) ngx_destroy_pool_shared(old_cycle->pool_shared);
+         cycle->old_cycle = NULL;
+ 
+         return cycle;
+@@ -872,6 +900,7 @@ ngx_destroy_cycle_pools(ngx_conf_t *conf
+ {
+     ngx_destroy_pool(conf->temp_pool);
+     ngx_destroy_pool(conf->pool);
++    ngx_destroy_pool_shared(conf->pool_shared);
+ }
+ 
+ 
+@@ -1326,6 +1355,7 @@ ngx_clean_old_cycles(ngx_event_t *ev)
+         ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, 0, "clean old cycle: %ui", i);
+ 
+         ngx_destroy_pool(cycle[i]->pool);
++        ngx_destroy_pool_shared(cycle[i]->pool_shared);
+         cycle[i] = NULL;
+     }
+ 
+diff --color -urNp nginx-1.15.6/src/core/ngx_cycle.h nginx-1.15.6-flexos/src/core/ngx_cycle.h
+--- nginx-1.15.6/src/core/ngx_cycle.h	2021-07-12 12:05:52.406222734 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_cycle.h	2021-07-12 11:58:22.950802590 +0200
+@@ -39,6 +39,7 @@ struct ngx_shm_zone_s {
+ struct ngx_cycle_s {
+     void                  ****conf_ctx;
+     ngx_pool_t               *pool;
++    ngx_pool_t               *pool_shared;
+ 
+     ngx_log_t                *log;
+     ngx_log_t                 new_log;
+diff --color -urNp nginx-1.15.6/src/core/ngx_output_chain.c nginx-1.15.6-flexos/src/core/ngx_output_chain.c
+--- nginx-1.15.6/src/core/ngx_output_chain.c	2021-07-12 12:05:52.406222734 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_output_chain.c	2021-07-12 11:58:22.950802590 +0200
+@@ -158,7 +158,7 @@ ngx_output_chain(ngx_output_chain_ctx_t
+                         ctx->buf = cl->buf;
+                         ctx->free = cl->next;
+ 
+-                        ngx_free_chain(ctx->pool, cl);
++                        ngx_free_chain(ctx->pool_shared, cl);
+ 
+                     } else if (out || ctx->allocated == ctx->bufs.num) {
+ 
+@@ -478,7 +478,7 @@ ngx_output_chain_get_buf(ngx_output_chai
+         }
+ 
+     } else {
+-        b->start = ngx_palloc(ctx->pool, size);
++        b->start = ngx_palloc(ctx->pool_shared, size);
+         if (b->start == NULL) {
+             return NGX_ERROR;
+         }
+diff --color -urNp nginx-1.15.6/src/core/ngx_palloc.c nginx-1.15.6-flexos/src/core/ngx_palloc.c
+--- nginx-1.15.6/src/core/ngx_palloc.c	2021-07-12 12:05:52.410222694 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_palloc.c	2021-07-12 11:58:22.990802183 +0200
+@@ -5,6 +5,7 @@
+  */
+ 
+ 
++#include <flexos/isolation.h>
+ #include <ngx_config.h>
+ #include <ngx_core.h>
+ 
+@@ -13,9 +14,37 @@ static ngx_inline void *ngx_palloc_small
+     ngx_uint_t align);
+ static void *ngx_palloc_block(ngx_pool_t *pool, size_t size);
+ static void *ngx_palloc_large(ngx_pool_t *pool, size_t size);
++static void *ngx_palloc_large_shared(ngx_pool_t *pool, size_t size);
+ 
+ 
+ ngx_pool_t *
++ngx_create_pool_shared(size_t size, ngx_log_t *log)
++{
++    ngx_pool_t  *p;
++
++    p = flexos_memalign_whitelist(NGX_POOL_ALIGNMENT, size, log);
++    if (p == NULL) {
++        return NULL;
++    }
++
++    p->d.last = (u_char *) p + sizeof(ngx_pool_t);
++    p->d.end = (u_char *) p + size;
++    p->d.next = NULL;
++    p->d.failed = 0;
++
++    size = size - sizeof(ngx_pool_t);
++    p->max = (size < NGX_MAX_ALLOC_FROM_POOL) ? size : NGX_MAX_ALLOC_FROM_POOL;
++
++    p->current = p;
++    p->chain = NULL;
++    p->large = NULL;
++    p->cleanup = NULL;
++    p->log = log;
++
++    return p;
++}
++
++ngx_pool_t *
+ ngx_create_pool(size_t size, ngx_log_t *log)
+ {
+     ngx_pool_t  *p;
+@@ -44,6 +73,59 @@ ngx_create_pool(size_t size, ngx_log_t *
+ 
+ 
+ void
++ngx_destroy_pool_shared(ngx_pool_t *pool)
++{
++    ngx_pool_t          *p, *n;
++    ngx_pool_large_t    *l;
++    ngx_pool_cleanup_t  *c;
++
++    for (c = pool->cleanup; c; c = c->next) {
++        if (c->handler) {
++            ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, pool->log, 0,
++                           "run cleanup: %p", c);
++            c->handler(c->data);
++        }
++    }
++
++#if (NGX_DEBUG)
++
++    /*
++     * we could allocate the pool->log from this pool
++     * so we cannot use this log while free()ing the pool
++     */
++
++    for (l = pool->large; l; l = l->next) {
++        ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, pool->log, 0, "free: %p", l->alloc);
++    }
++
++    for (p = pool, n = pool->d.next; /* void */; p = n, n = n->d.next) {
++        ngx_log_debug2(NGX_LOG_DEBUG_ALLOC, pool->log, 0,
++                       "free: %p, unused: %uz", p, p->d.end - p->d.last);
++
++        if (n == NULL) {
++            break;
++        }
++    }
++
++#endif
++
++    for (l = pool->large; l; l = l->next) {
++        if (l->alloc) {
++            flexos_free_whitelist(l->alloc);
++        }
++    }
++
++    for (p = pool, n = pool->d.next; /* void */; p = n, n = n->d.next) {
++        flexos_free_whitelist(p);
++
++        if (n == NULL) {
++            break;
++        }
++    }
++}
++
++
++void
+ ngx_destroy_pool(ngx_pool_t *pool)
+ {
+     ngx_pool_t          *p, *n;
+@@ -120,6 +202,19 @@ ngx_reset_pool(ngx_pool_t *pool)
+ 
+ 
+ void *
++ngx_palloc_shared(ngx_pool_t *pool, size_t size)
++{
++#if !(NGX_DEBUG_PALLOC)
++    if (size <= pool->max) {
++        return ngx_palloc_small(pool, size, 1);
++    }
++#endif
++
++    return ngx_palloc_large_shared(pool, size);
++}
++
++
++void *
+ ngx_palloc(ngx_pool_t *pool, size_t size)
+ {
+ #if !(NGX_DEBUG_PALLOC)
+@@ -211,6 +306,45 @@ ngx_palloc_block(ngx_pool_t *pool, size_
+ 
+ 
+ static void *
++ngx_palloc_large_shared(ngx_pool_t *pool, size_t size)
++{
++    void              *p;
++    ngx_uint_t         n;
++    ngx_pool_large_t  *large;
++
++    p = flexos_malloc_whitelist(size);
++    if (p == NULL) {
++        return NULL;
++    }
++
++    n = 0;
++
++    for (large = pool->large; large; large = large->next) {
++        if (large->alloc == NULL) {
++            large->alloc = p;
++            return p;
++        }
++
++        if (n++ > 3) {
++            break;
++        }
++    }
++
++    large = ngx_palloc_small(pool, sizeof(ngx_pool_large_t), 1);
++    if (large == NULL) {
++        flexos_free_whitelist(p);
++        return NULL;
++    }
++
++    large->alloc = p;
++    large->next = pool->large;
++    pool->large = large;
++
++    return p;
++}
++
++
++static void *
+ ngx_palloc_large(ngx_pool_t *pool, size_t size)
+ {
+     void              *p;
+@@ -303,6 +437,20 @@ ngx_pcalloc(ngx_pool_t *pool, size_t siz
+     if (p) {
+         ngx_memzero(p, size);
+     }
++
++    return p;
++}
++
++
++void *
++ngx_pcalloc_shared(ngx_pool_t *pool, size_t size)
++{
++    void *p;
++
++    p = ngx_palloc_shared(pool, size);
++    if (p) {
++        ngx_memzero(p, size);
++    }
+ 
+     return p;
+ }
+diff --color -urNp nginx-1.15.6/src/core/ngx_palloc.h nginx-1.15.6-flexos/src/core/ngx_palloc.h
+--- nginx-1.15.6/src/core/ngx_palloc.h	2021-07-12 12:05:52.414222653 +0200
++++ nginx-1.15.6-flexos/src/core/ngx_palloc.h	2021-07-12 11:58:22.990802183 +0200
+@@ -73,12 +73,16 @@ typedef struct {
+ 
+ 
+ ngx_pool_t *ngx_create_pool(size_t size, ngx_log_t *log);
++ngx_pool_t *ngx_create_pool_shared(size_t size, ngx_log_t *log);
+ void ngx_destroy_pool(ngx_pool_t *pool);
++void ngx_destroy_pool_shared(ngx_pool_t *pool);
+ void ngx_reset_pool(ngx_pool_t *pool);
+ 
+ void *ngx_palloc(ngx_pool_t *pool, size_t size);
++void *ngx_palloc_shared(ngx_pool_t *pool, size_t size);
+ void *ngx_pnalloc(ngx_pool_t *pool, size_t size);
+ void *ngx_pcalloc(ngx_pool_t *pool, size_t size);
++void *ngx_pcalloc_shared(ngx_pool_t *pool, size_t size);
+ void *ngx_pmemalign(ngx_pool_t *pool, size_t size, size_t alignment);
+ ngx_int_t ngx_pfree(ngx_pool_t *pool, void *p);
+ 
+diff --color -urNp nginx-1.15.6/src/event/modules/ngx_epoll_module.c nginx-1.15.6-flexos/src/event/modules/ngx_epoll_module.c
+--- nginx-1.15.6/src/event/modules/ngx_epoll_module.c	2021-07-12 12:05:52.418222613 +0200
++++ nginx-1.15.6-flexos/src/event/modules/ngx_epoll_module.c	2021-07-12 11:58:23.114800919 +0200
+@@ -8,6 +8,7 @@
+ #include <ngx_config.h>
+ #include <ngx_core.h>
+ #include <ngx_event.h>
++#include <flexos/isolation.h>
+ 
+ 
+ #if (NGX_TEST_BUILD_EPOLL)
+@@ -248,7 +249,7 @@ io_getevents(aio_context_t ctx, long min
+ static void
+ ngx_epoll_aio_init(ngx_cycle_t *cycle, ngx_epoll_conf_t *epcf)
+ {
+-    int                 n;
++    int                 n __attribute__((flexos_whitelist));
+     struct epoll_event  ee;
+ 
+ #if (NGX_HAVE_SYS_EVENTFD_H)
+diff --color -urNp nginx-1.15.6/src/event/modules/ngx_select_module.c nginx-1.15.6-flexos/src/event/modules/ngx_select_module.c
+--- nginx-1.15.6/src/event/modules/ngx_select_module.c	2021-07-12 12:05:52.422222571 +0200
++++ nginx-1.15.6-flexos/src/event/modules/ngx_select_module.c	2021-07-12 11:58:23.102801041 +0200
+@@ -9,6 +9,17 @@
+ #include <ngx_core.h>
+ #include <ngx_event.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int getsockopt_wrapper(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, getsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++#define getsockopt(...) getsockopt_wrapper(__VA_ARGS__)
++
+ 
+ static ngx_int_t ngx_select_init(ngx_cycle_t *cycle, ngx_msec_t timer);
+ static void ngx_select_done(ngx_cycle_t *cycle);
+@@ -24,8 +35,8 @@ static char *ngx_select_init_conf(ngx_cy
+ 
+ static fd_set         master_read_fd_set;
+ static fd_set         master_write_fd_set;
+-static fd_set         work_read_fd_set;
+-static fd_set         work_write_fd_set;
++static fd_set         work_read_fd_set __attribute__((flexos_whitelist));
++static fd_set         work_write_fd_set __attribute__((flexos_whitelist));
+ 
+ static ngx_int_t      max_fd;
+ static ngx_uint_t     nevents;
+@@ -216,7 +227,8 @@ ngx_select_process_events(ngx_cycle_t *c
+     ngx_uint_t         i, found;
+     ngx_event_t       *ev;
+     ngx_queue_t       *queue;
+-    struct timeval     tv, *tp;
++    struct timeval     tv __attribute__((flexos_whitelist));
++    struct timeval     *tp;
+     ngx_connection_t  *c;
+ 
+     if (max_fd == -1) {
+@@ -260,7 +272,7 @@ ngx_select_process_events(ngx_cycle_t *c
+     work_read_fd_set = master_read_fd_set;
+     work_write_fd_set = master_write_fd_set;
+ 
+-    ready = select(max_fd + 1, &work_read_fd_set, &work_write_fd_set, NULL, tp);
++    flexos_gate_r(liblwip, ready, select, max_fd + 1, &work_read_fd_set, &work_write_fd_set, NULL, tp);
+ 
+     err = (ready == -1) ? ngx_errno : 0;
+ 
+diff --color -urNp nginx-1.15.6/src/event/modules/ngx_win32_select_module.c nginx-1.15.6-flexos/src/event/modules/ngx_win32_select_module.c
+--- nginx-1.15.6/src/event/modules/ngx_win32_select_module.c	2021-07-12 12:05:52.426222530 +0200
++++ nginx-1.15.6-flexos/src/event/modules/ngx_win32_select_module.c	2021-07-12 11:58:23.110800960 +0200
+@@ -9,6 +9,16 @@
+ #include <ngx_core.h>
+ #include <ngx_event.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int getsockopt_wrapper(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, getsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++#define getsockopt(...) getsockopt_wrapper(__VA_ARGS__)
+ 
+ static ngx_int_t ngx_select_init(ngx_cycle_t *cycle, ngx_msec_t timer);
+ static void ngx_select_done(ngx_cycle_t *cycle);
+diff --color -urNp nginx-1.15.6/src/event/ngx_event_accept.c nginx-1.15.6-flexos/src/event/ngx_event_accept.c
+--- nginx-1.15.6/src/event/ngx_event_accept.c	2021-07-12 12:05:52.430222490 +0200
++++ nginx-1.15.6-flexos/src/event/ngx_event_accept.c	2021-07-12 11:58:23.098801082 +0200
+@@ -13,6 +13,19 @@
+ static ngx_int_t ngx_disable_accept_events(ngx_cycle_t *cycle, ngx_uint_t all);
+ static void ngx_close_accepted_connection(ngx_connection_t *c);
+ 
++#include <flexos/isolation.h>
++
++static inline int accept_wrapper(int sockfd, struct sockaddr *addr, socklen_t *addrlen) 
++{
++	int ret;
++	ngx_sockaddr_t _addr __attribute__((flexos_whitelist));
++	socklen_t _addrlen __attribute__((flexos_whitelist)) = *addrlen;
++	flexos_gate_r(liblwip, ret, accept, sockfd, (struct sockaddr *) &_addr, &_addrlen);
++	memcpy(addr, &_addr, *addrlen);
++	return ret;
++}
++
++#define accept(...) accept_wrapper(__VA_ARGS__)
+ 
+ void
+ ngx_event_accept(ngx_event_t *ev)
+@@ -159,6 +172,12 @@ ngx_event_accept(ngx_event_t *ev)
+             return;
+         }
+ 
++        c->pool_shared = ngx_create_pool_shared(ls->pool_size, ev->log);
++        if (c->pool_shared == NULL) {
++            ngx_close_accepted_connection(c);
++            return;
++        }
++
+         if (socklen > (socklen_t) sizeof(ngx_sockaddr_t)) {
+             socklen = sizeof(ngx_sockaddr_t);
+         }
+@@ -435,6 +454,7 @@ ngx_close_accepted_connection(ngx_connec
+ 
+     if (c->pool) {
+         ngx_destroy_pool(c->pool);
++        ngx_destroy_pool_shared(c->pool_shared);
+     }
+ 
+ #if (NGX_STAT_STUB)
+diff --color -urNp nginx-1.15.6/src/event/ngx_event.c nginx-1.15.6-flexos/src/event/ngx_event.c
+--- nginx-1.15.6/src/event/ngx_event.c	2021-07-12 12:05:52.434222449 +0200
++++ nginx-1.15.6-flexos/src/event/ngx_event.c	2021-07-12 11:58:23.070801368 +0200
+@@ -6,6 +6,7 @@
+ 
+ 
+ #include <ngx_config.h>
++#include <flexos/isolation.h>
+ #include <ngx_core.h>
+ #include <ngx_event.h>
+ 
+@@ -925,9 +926,10 @@ ngx_send_lowat(ngx_connection_t *c, size
+ 
+     sndlowat = (int) lowat;
+ 
+-    if (setsockopt(c->fd, SOL_SOCKET, SO_SNDLOWAT,
++    int ret;
++    flexos_gate_r(liblwip, ret, setsockopt, c->fd, SOL_SOCKET, SO_SNDLOWAT,
+                    (const void *) &sndlowat, sizeof(int))
+-        == -1)
++    if (ret == -1)
+     {
+         ngx_connection_error(c, ngx_socket_errno,
+                              "setsockopt(SO_SNDLOWAT) failed");
+diff --color -urNp nginx-1.15.6/src/event/ngx_event_connect.c nginx-1.15.6-flexos/src/event/ngx_event_connect.c
+--- nginx-1.15.6/src/event/ngx_event_connect.c	2021-07-12 12:05:52.442222368 +0200
++++ nginx-1.15.6-flexos/src/event/ngx_event_connect.c	2021-07-12 11:58:23.066801408 +0200
+@@ -9,7 +9,26 @@
+ #include <ngx_core.h>
+ #include <ngx_event.h>
+ #include <ngx_event_connect.h>
++#include <flexos/isolation.h>
+ 
++static inline int bind_wrapper(int sockfd, const struct sockaddr *addr,
++         socklen_t addrlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, bind, sockfd, addr, addrlen);
++	return ret;
++}
++
++static inline int setsockopt_wrapper(int sockfd, int level, int optname,
++             const void *optval, socklen_t optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, setsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++#define setsockopt(...) setsockopt_wrapper(__VA_ARGS__)
++#define bind(...) bind_wrapper(__VA_ARGS__)
+ 
+ #if (NGX_HAVE_TRANSPARENT_PROXY)
+ static ngx_int_t ngx_event_connect_set_transparent(ngx_peer_connection_t *pc,
+diff --color -urNp nginx-1.15.6/src/http/modules/ngx_http_upstream_keepalive_module.c nginx-1.15.6-flexos/src/http/modules/ngx_http_upstream_keepalive_module.c
+--- nginx-1.15.6/src/http/modules/ngx_http_upstream_keepalive_module.c	2021-07-12 12:05:52.446222327 +0200
++++ nginx-1.15.6-flexos/src/http/modules/ngx_http_upstream_keepalive_module.c	2021-07-12 11:58:23.322798801 +0200
+@@ -9,6 +9,17 @@
+ #include <ngx_core.h>
+ #include <ngx_http.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int recv_wrapper(int sockfd, void *buf, size_t len, int flags)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, recv, sockfd, buf, len, flags);
++	return ret;
++}
++
++#define recv(...) recv_wrapper(__VA_ARGS__)
++
+ 
+ typedef struct {
+     ngx_uint_t                         max_cached;
+diff --color -urNp nginx-1.15.6/src/http/ngx_http_copy_filter_module.c nginx-1.15.6-flexos/src/http/ngx_http_copy_filter_module.c
+--- nginx-1.15.6/src/http/ngx_http_copy_filter_module.c	2021-07-12 12:05:52.450222286 +0200
++++ nginx-1.15.6-flexos/src/http/ngx_http_copy_filter_module.c	2021-07-12 11:58:23.178800268 +0200
+@@ -118,6 +118,7 @@ ngx_http_copy_filter(ngx_http_request_t
+         ctx->alignment = clcf->directio_alignment;
+ 
+         ctx->pool = r->pool;
++        ctx->pool_shared = r->pool_shared;
+         ctx->bufs = conf->bufs;
+         ctx->tag = (ngx_buf_tag_t) &ngx_http_copy_filter_module;
+ 
+diff --color -urNp nginx-1.15.6/src/http/ngx_http_header_filter_module.c nginx-1.15.6-flexos/src/http/ngx_http_header_filter_module.c
+--- nginx-1.15.6/src/http/ngx_http_header_filter_module.c	2021-07-12 12:05:52.454222245 +0200
++++ nginx-1.15.6-flexos/src/http/ngx_http_header_filter_module.c	2021-07-12 11:58:23.126800797 +0200
+@@ -431,7 +431,7 @@ ngx_http_header_filter(ngx_http_request_
+                + sizeof(CRLF) - 1;
+     }
+ 
+-    b = ngx_create_temp_buf(r->pool, len);
++    b = ngx_create_temp_buf(r->pool_shared, len);
+     if (b == NULL) {
+         return NGX_ERROR;
+     }
+diff --color -urNp nginx-1.15.6/src/http/ngx_http_request_body.c nginx-1.15.6-flexos/src/http/ngx_http_request_body.c
+--- nginx-1.15.6/src/http/ngx_http_request_body.c	2021-07-12 12:05:52.458222204 +0200
++++ nginx-1.15.6-flexos/src/http/ngx_http_request_body.c	2021-07-12 11:58:23.138800676 +0200
+@@ -6,6 +6,7 @@
+ 
+ 
+ #include <ngx_config.h>
++#include <flexos/isolation.h>
+ #include <ngx_core.h>
+ #include <ngx_http.h>
+ 
+@@ -111,7 +112,7 @@ ngx_http_read_client_request_body(ngx_ht
+         {
+             /* the whole request body may be placed in r->header_in */
+ 
+-            b = ngx_calloc_buf(r->pool);
++            b = ngx_calloc_buf(r->pool_shared);
+             if (b == NULL) {
+                 rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+                 goto done;
+@@ -659,7 +660,7 @@ ngx_http_read_discarded_request_body(ngx
+     ssize_t    n;
+     ngx_int_t  rc;
+     ngx_buf_t  b;
+-    u_char     buffer[NGX_HTTP_DISCARD_BUFFER_SIZE];
++    u_char     buffer[NGX_HTTP_DISCARD_BUFFER_SIZE] __attribute__((flexos_whitelist));
+ 
+     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                    "http read discarded body");
+diff --color -urNp nginx-1.15.6/src/http/ngx_http_request.c nginx-1.15.6-flexos/src/http/ngx_http_request.c
+--- nginx-1.15.6/src/http/ngx_http_request.c	2021-07-12 12:05:52.462222164 +0200
++++ nginx-1.15.6-flexos/src/http/ngx_http_request.c	2021-07-12 11:58:23.150800553 +0200
+@@ -9,6 +9,25 @@
+ #include <ngx_core.h>
+ #include <ngx_http.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int setsockopt_wrapper(int sockfd, int level, int optname,
++             const void *optval, socklen_t optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, setsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++static inline int getsockopt_wrapper(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, getsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++#define getsockopt(...) getsockopt_wrapper(__VA_ARGS__)
++#define setsockopt(...) setsockopt_wrapper(__VA_ARGS__)
+ 
+ static void ngx_http_wait_request_handler(ngx_event_t *ev);
+ static void ngx_http_process_request_line(ngx_event_t *rev);
+@@ -404,7 +423,7 @@ ngx_http_wait_request_handler(ngx_event_
+     b = c->buffer;
+ 
+     if (b == NULL) {
+-        b = ngx_create_temp_buf(c->pool, size);
++        b = ngx_create_temp_buf_shared(c->pool_shared, size);
+         if (b == NULL) {
+             ngx_http_close_connection(c);
+             return;
+@@ -414,7 +433,7 @@ ngx_http_wait_request_handler(ngx_event_
+ 
+     } else if (b->start == NULL) {
+ 
+-        b->start = ngx_palloc(c->pool, size);
++        b->start = ngx_palloc_shared(c->pool_shared, size);
+         if (b->start == NULL) {
+             ngx_http_close_connection(c);
+             return;
+@@ -504,6 +523,7 @@ ngx_http_request_t *
+ ngx_http_create_request(ngx_connection_t *c)
+ {
+     ngx_pool_t                 *pool;
++    ngx_pool_t                 *pool_shared;
+     ngx_time_t                 *tp;
+     ngx_http_request_t         *r;
+     ngx_http_log_ctx_t         *ctx;
+@@ -523,13 +543,20 @@ ngx_http_create_request(ngx_connection_t
+         return NULL;
+     }
+ 
++    pool_shared = ngx_create_pool_shared(cscf->request_pool_size, c->log);
++    if (pool_shared == NULL) {
++        return NULL;
++    }
++
+     r = ngx_pcalloc(pool, sizeof(ngx_http_request_t));
+     if (r == NULL) {
+         ngx_destroy_pool(pool);
++        ngx_destroy_pool_shared(pool_shared);
+         return NULL;
+     }
+ 
+     r->pool = pool;
++    r->pool_shared = pool_shared;
+ 
+     r->http_connection = hc;
+     r->signature = NGX_HTTP_MODULE;
+@@ -552,6 +579,7 @@ ngx_http_create_request(ngx_connection_t
+         != NGX_OK)
+     {
+         ngx_destroy_pool(r->pool);
++        ngx_destroy_pool_shared(r->pool_shared);
+         return NULL;
+     }
+ 
+@@ -560,12 +588,14 @@ ngx_http_create_request(ngx_connection_t
+         != NGX_OK)
+     {
+         ngx_destroy_pool(r->pool);
++        ngx_destroy_pool_shared(r->pool_shared);
+         return NULL;
+     }
+ 
+     r->ctx = ngx_pcalloc(r->pool, sizeof(void *) * ngx_http_max_module);
+     if (r->ctx == NULL) {
+         ngx_destroy_pool(r->pool);
++        ngx_destroy_pool_shared(r->pool_shared);
+         return NULL;
+     }
+ 
+@@ -575,6 +605,7 @@ ngx_http_create_request(ngx_connection_t
+                                         * sizeof(ngx_http_variable_value_t));
+     if (r->variables == NULL) {
+         ngx_destroy_pool(r->pool);
++        ngx_destroy_pool_shared(r->pool_shared);
+         return NULL;
+     }
+ 
+@@ -1506,7 +1537,7 @@ ngx_http_alloc_large_header_buffer(ngx_h
+ 
+     } else if (hc->nbusy < cscf->large_client_header_buffers.num) {
+ 
+-        b = ngx_create_temp_buf(r->connection->pool,
++        b = ngx_create_temp_buf(r->connection->pool_shared,
+                                 cscf->large_client_header_buffers.size);
+         if (b == NULL) {
+             return NGX_ERROR;
+@@ -3157,7 +3188,7 @@ ngx_http_keepalive_handler(ngx_event_t *
+          * to keep the buffer size.
+          */
+ 
+-        b->pos = ngx_palloc(c->pool, size);
++        b->pos = ngx_palloc(c->pool_shared, size);
+         if (b->pos == NULL) {
+             ngx_http_close_connection(c);
+             return;
+@@ -3293,7 +3324,7 @@ ngx_http_lingering_close_handler(ngx_eve
+     ngx_connection_t          *c;
+     ngx_http_request_t        *r;
+     ngx_http_core_loc_conf_t  *clcf;
+-    u_char                     buffer[NGX_HTTP_LINGERING_BUFFER_SIZE];
++    u_char                     buffer[NGX_HTTP_LINGERING_BUFFER_SIZE] __attribute__((flexos_whitelist));
+ 
+     c = rev->data;
+     r = c->data;
+@@ -3471,7 +3502,7 @@ void
+ ngx_http_free_request(ngx_http_request_t *r, ngx_int_t rc)
+ {
+     ngx_log_t                 *log;
+-    ngx_pool_t                *pool;
++    ngx_pool_t                *pool, *pool_shared;
+     struct linger              linger;
+     ngx_http_cleanup_t        *cln;
+     ngx_http_log_ctx_t        *ctx;
+@@ -3549,9 +3580,12 @@ ngx_http_free_request(ngx_http_request_t
+      */
+ 
+     pool = r->pool;
++    pool_shared = r->pool_shared;
+     r->pool = NULL;
++    r->pool_shared = NULL;
+ 
+     ngx_destroy_pool(pool);
++    ngx_destroy_pool_shared(pool_shared);
+ }
+ 
+ 
+@@ -3576,7 +3610,7 @@ ngx_http_log_request(ngx_http_request_t
+ void
+ ngx_http_close_connection(ngx_connection_t *c)
+ {
+-    ngx_pool_t  *pool;
++    ngx_pool_t  *pool, *pool_shared;
+ 
+     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, c->log, 0,
+                    "close http connection: %d", c->fd);
+@@ -3599,10 +3633,12 @@ ngx_http_close_connection(ngx_connection
+     c->destroyed = 1;
+ 
+     pool = c->pool;
++    pool_shared = c->pool_shared;
+ 
+     ngx_close_connection(c);
+ 
+     ngx_destroy_pool(pool);
++    ngx_destroy_pool_shared(pool_shared);
+ }
+ 
+ 
+diff --color -urNp nginx-1.15.6/src/http/ngx_http_request.h nginx-1.15.6-flexos/src/http/ngx_http_request.h
+--- nginx-1.15.6/src/http/ngx_http_request.h	2021-07-12 12:05:52.470222082 +0200
++++ nginx-1.15.6-flexos/src/http/ngx_http_request.h	2021-07-12 11:58:23.142800634 +0200
+@@ -390,6 +390,7 @@ struct ngx_http_request_s {
+                                          /* of ngx_http_upstream_state_t */
+ 
+     ngx_pool_t                       *pool;
++    ngx_pool_t                       *pool_shared;
+     ngx_buf_t                        *header_in;
+ 
+     ngx_http_headers_in_t             headers_in;
+diff --color -urNp nginx-1.15.6/src/http/ngx_http_upstream.c nginx-1.15.6-flexos/src/http/ngx_http_upstream.c
+--- nginx-1.15.6/src/http/ngx_http_upstream.c	2021-07-12 12:05:52.474222042 +0200
++++ nginx-1.15.6-flexos/src/http/ngx_http_upstream.c	2021-07-12 11:58:23.146800593 +0200
+@@ -9,6 +9,23 @@
+ #include <ngx_core.h>
+ #include <ngx_http.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int getsockopt_wrapper(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, getsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++static inline int recv_wrapper(int sockfd, void *buf, size_t len, int flags)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, recv, sockfd, buf, len, flags);
++	return ret;
++}
++
++#define getsockopt(...) getsockopt_wrapper(__VA_ARGS__)
+ 
+ #if (NGX_HTTP_CACHE)
+ static ngx_int_t ngx_http_upstream_cache(ngx_http_request_t *r,
+@@ -636,6 +653,7 @@ ngx_http_upstream_init_request(ngx_http_
+ 
+     u->output.alignment = clcf->directio_alignment;
+     u->output.pool = r->pool;
++    u->output.pool_shared = r->pool_shared;
+     u->output.bufs.num = 1;
+     u->output.bufs.size = clcf->client_body_buffer_size;
+ 
+@@ -1438,7 +1456,7 @@ ngx_http_upstream_check_broken_connectio
+ 
+ #endif
+ 
+-    n = recv(c->fd, buf, 1, MSG_PEEK);
++    n = recv_wrapper(c->fd, buf, 1, MSG_PEEK);
+ 
+     err = ngx_socket_errno;
+ 
+diff --color -urNp nginx-1.15.6/src/http/ngx_http_variables.c nginx-1.15.6-flexos/src/http/ngx_http_variables.c
+--- nginx-1.15.6/src/http/ngx_http_variables.c	2021-07-12 12:05:52.482221959 +0200
++++ nginx-1.15.6-flexos/src/http/ngx_http_variables.c	2021-07-12 11:58:23.162800431 +0200
+@@ -10,6 +10,16 @@
+ #include <ngx_http.h>
+ #include <nginx.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int getsockopt_wrapper(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, getsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++#define getsockopt(...) getsockopt_wrapper(__VA_ARGS__)
+ 
+ static ngx_http_variable_t *ngx_http_add_prefix_variable(ngx_conf_t *cf,
+     ngx_str_t *name, ngx_uint_t flags);
+diff --color -urNp nginx-1.15.6/src/http/v2/ngx_http_v2.c nginx-1.15.6-flexos/src/http/v2/ngx_http_v2.c
+--- nginx-1.15.6/src/http/v2/ngx_http_v2.c	2021-07-12 12:05:52.490221878 +0200
++++ nginx-1.15.6-flexos/src/http/v2/ngx_http_v2.c	2021-07-12 11:58:23.342798597 +0200
+@@ -246,7 +246,7 @@ ngx_http_v2_init(ngx_event_t *rev)
+     h2mcf = ngx_http_get_module_main_conf(hc->conf_ctx, ngx_http_v2_module);
+ 
+     if (h2mcf->recv_buffer == NULL) {
+-        h2mcf->recv_buffer = ngx_palloc(ngx_cycle->pool,
++        h2mcf->recv_buffer = ngx_palloc(ngx_cycle->pool_shared,
+                                         h2mcf->recv_buffer_size);
+         if (h2mcf->recv_buffer == NULL) {
+             ngx_http_close_connection(c);
+diff --color -urNp nginx-1.15.6/src/os/unix/ngx_channel.c nginx-1.15.6-flexos/src/os/unix/ngx_channel.c
+--- nginx-1.15.6/src/os/unix/ngx_channel.c	2021-07-12 12:05:52.494221837 +0200
++++ nginx-1.15.6-flexos/src/os/unix/ngx_channel.c	2021-07-12 11:58:23.526796724 +0200
+@@ -209,6 +209,7 @@ ngx_add_channel_event(ngx_cycle_t *cycle
+     }
+ 
+     c->pool = cycle->pool;
++    c->pool_shared = cycle->pool_shared;
+ 
+     rev = c->read;
+     wev = c->write;
+diff --color -urNp nginx-1.15.6/src/os/unix/ngx_linux_sendfile_chain.c nginx-1.15.6-flexos/src/os/unix/ngx_linux_sendfile_chain.c
+--- nginx-1.15.6/src/os/unix/ngx_linux_sendfile_chain.c	2021-07-12 12:05:52.498221797 +0200
++++ nginx-1.15.6-flexos/src/os/unix/ngx_linux_sendfile_chain.c	2021-07-12 11:58:23.422797783 +0200
+@@ -9,6 +9,17 @@
+ #include <ngx_core.h>
+ #include <ngx_event.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int setsockopt_wrapper(int sockfd, int level, int optname,
++             const void *optval, socklen_t optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, setsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++#define setsockopt(...) setsockopt_wrapper(__VA_ARGS__)
+ 
+ static ssize_t ngx_linux_sendfile(ngx_connection_t *c, ngx_buf_t *file,
+     size_t size);
+diff --color -urNp nginx-1.15.6/src/os/unix/ngx_recv.c nginx-1.15.6-flexos/src/os/unix/ngx_recv.c
+--- nginx-1.15.6/src/os/unix/ngx_recv.c	2021-07-12 12:05:52.502221757 +0200
++++ nginx-1.15.6-flexos/src/os/unix/ngx_recv.c	2021-07-12 11:58:23.474797253 +0200
+@@ -9,6 +9,16 @@
+ #include <ngx_core.h>
+ #include <ngx_event.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int recv_wrapper(int sockfd, void *buf, size_t len, int flags)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, recv, sockfd, buf, len, flags);
++	return ret;
++}
++
++#define recv(...) recv_wrapper(__VA_ARGS__)
+ 
+ ssize_t
+ ngx_unix_recv(ngx_connection_t *c, u_char *buf, size_t size)
+diff --color -urNp nginx-1.15.6/src/os/unix/ngx_socket.c nginx-1.15.6-flexos/src/os/unix/ngx_socket.c
+--- nginx-1.15.6/src/os/unix/ngx_socket.c	2021-07-12 12:05:52.506221715 +0200
++++ nginx-1.15.6-flexos/src/os/unix/ngx_socket.c	2021-07-12 11:58:23.490797091 +0200
+@@ -5,6 +5,7 @@
+  */
+ 
+ 
++#include <flexos/isolation.h>
+ #include <ngx_config.h>
+ #include <ngx_core.h>
+ 
+@@ -20,28 +21,43 @@
+  * ioctl() in Linux 2.4 and 2.6 uses BKL, however, fcntl(F_SETFL) uses it too.
+  */
+ 
++#include <flexos/isolation.h>
++
++static inline int setsockopt_wrapper(int sockfd, int level, int optname,
++             const void *optval, socklen_t optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, setsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++#define setsockopt setsockopt_wrapper
++
+ 
+ #if (NGX_HAVE_FIONBIO)
+ 
+ int
+ ngx_nonblocking(ngx_socket_t s)
+ {
+-    int  nb;
++    int  nb __attribute__((flexos_whitelist));
+ 
+     nb = 1;
+ 
+-    return ioctl(s, FIONBIO, &nb);
++    int ret = ioctl(s, FIONBIO, &nb);
++
++    return ret;
+ }
+ 
+ 
+ int
+ ngx_blocking(ngx_socket_t s)
+ {
+-    int  nb;
++    int  nb __attribute__((flexos_whitelist));
+ 
+     nb = 0;
++    int ret = ioctl(s, FIONBIO, &nb);
+ 
+-    return ioctl(s, FIONBIO, &nb);
++    return ret;
+ }
+ 
+ #endif
+@@ -52,24 +68,28 @@ ngx_blocking(ngx_socket_t s)
+ int
+ ngx_tcp_nopush(ngx_socket_t s)
+ {
+-    int  tcp_nopush;
++    int  tcp_nopush __attribute__((flexos_whitelist));
+ 
+     tcp_nopush = 1;
+ 
+-    return setsockopt(s, IPPROTO_TCP, TCP_NOPUSH,
++    int ret = setsockopt(s, IPPROTO_TCP, TCP_NOPUSH,
+                       (const void *) &tcp_nopush, sizeof(int));
++
++    return ret;
+ }
+ 
+ 
+ int
+ ngx_tcp_push(ngx_socket_t s)
+ {
+-    int  tcp_nopush;
++    int  tcp_nopush __attribute__((flexos_whitelist));
+ 
+     tcp_nopush = 0;
+ 
+-    return setsockopt(s, IPPROTO_TCP, TCP_NOPUSH,
++    int ret = setsockopt(s, IPPROTO_TCP, TCP_NOPUSH,
+                       (const void *) &tcp_nopush, sizeof(int));
++
++    return ret;
+ }
+ 
+ #elif (NGX_LINUX)
+@@ -78,24 +98,28 @@ ngx_tcp_push(ngx_socket_t s)
+ int
+ ngx_tcp_nopush(ngx_socket_t s)
+ {
+-    int  cork;
++    int  cork __attribute__((flexos_whitelist));
+ 
+     cork = 1;
+ 
+-    return setsockopt(s, IPPROTO_TCP, TCP_CORK,
++    int ret = setsockopt(s, IPPROTO_TCP, TCP_CORK,
+                       (const void *) &cork, sizeof(int));
++
++    return ret;
+ }
+ 
+ 
+ int
+ ngx_tcp_push(ngx_socket_t s)
+ {
+-    int  cork;
++    int  cork __attribute__((flexos_whitelist));
+ 
+     cork = 0;
+ 
+-    return setsockopt(s, IPPROTO_TCP, TCP_CORK,
++    int ret = setsockopt(s, IPPROTO_TCP, TCP_CORK,
+                       (const void *) &cork, sizeof(int));
++
++    return ret;
+ }
+ 
+ #else
+diff --color -urNp nginx-1.15.6/src/os/unix/ngx_socket.h nginx-1.15.6-flexos/src/os/unix/ngx_socket.h
+--- nginx-1.15.6/src/os/unix/ngx_socket.h	2021-07-12 12:05:52.510221674 +0200
++++ nginx-1.15.6-flexos/src/os/unix/ngx_socket.h	2021-07-12 11:58:23.502796968 +0200
+@@ -9,6 +9,7 @@
+ #define _NGX_SOCKET_H_INCLUDED_
+ 
+ 
++#include <flexos/isolation.h>
+ #include <ngx_config.h>
+ 
+ 
+@@ -16,7 +17,14 @@
+ 
+ typedef int  ngx_socket_t;
+ 
+-#define ngx_socket          socket
++static inline int nginx_socket_wrapper (int family, int type, int protocol)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, socket, family, type, protocol);
++	return ret;
++}
++
++#define ngx_socket          nginx_socket_wrapper
+ #define ngx_socket_n        "socket()"
+ 
+ 
+diff --color -urNp nginx-1.15.6/src/os/unix/ngx_time.h nginx-1.15.6-flexos/src/os/unix/ngx_time.h
+--- nginx-1.15.6/src/os/unix/ngx_time.h	2018-11-06 14:32:09.000000000 +0100
++++ nginx-1.15.6-flexos/src/os/unix/ngx_time.h	2021-07-12 12:14:49.348758403 +0200
+@@ -52,15 +52,32 @@ typedef struct tm             ngx_tm_t;
+ 
+ #endif
+ 
+-
+ void ngx_timezone_update(void);
+ void ngx_localtime(time_t s, ngx_tm_t *tm);
+ void ngx_libc_localtime(time_t s, struct tm *tm);
+ void ngx_libc_gmtime(time_t s, struct tm *tm);
+ 
+-#define ngx_gettimeofday(tp)  (void) gettimeofday(tp, NULL);
+-#define ngx_msleep(ms)        (void) usleep(ms * 1000)
+-#define ngx_sleep(s)          (void) sleep(s)
++#include <flexos/isolation.h>
+ 
++static inline int ngx_gettimeofday(struct timeval *tv)
++{
++	int now;
++	struct timeval _ptimeval __attribute__((flexos_whitelist));
++	flexos_gate_r(libuktime, now, gettimeofday, &_ptimeval, NULL);
++	tv->tv_sec = _ptimeval.tv_sec;
++	tv->tv_usec = _ptimeval.tv_usec;
++
++	return now;
++}
++
++static inline void ngx_msleep(useconds_t ms)
++{
++	flexos_gate(libuktime, usleep, ms * 1000);
++}
++
++static inline void ngx_sleep(unsigned int s)
++{
++	flexos_gate(libuktime, sleep, s);
++}
+ 
+ #endif /* _NGX_TIME_H_INCLUDED_ */
+diff --color -urNp nginx-1.15.6/src/os/unix/ngx_udp_recv.c nginx-1.15.6-flexos/src/os/unix/ngx_udp_recv.c
+--- nginx-1.15.6/src/os/unix/ngx_udp_recv.c	2021-07-12 12:05:52.514221633 +0200
++++ nginx-1.15.6-flexos/src/os/unix/ngx_udp_recv.c	2021-07-12 11:58:23.502796968 +0200
+@@ -9,6 +9,16 @@
+ #include <ngx_core.h>
+ #include <ngx_event.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int recv_wrapper(int sockfd, void *buf, size_t len, int flags)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, recv, sockfd, buf, len, flags);
++	return ret;
++}
++
++#define recv(...) recv_wrapper(__VA_ARGS__)
+ 
+ ssize_t
+ ngx_udp_unix_recv(ngx_connection_t *c, u_char *buf, size_t size)
+diff --color -urNp nginx-1.15.6/src/stream/ngx_stream_handler.c nginx-1.15.6-flexos/src/stream/ngx_stream_handler.c
+--- nginx-1.15.6/src/stream/ngx_stream_handler.c	2021-07-12 12:05:52.518221593 +0200
++++ nginx-1.15.6-flexos/src/stream/ngx_stream_handler.c	2021-07-12 11:58:23.570796275 +0200
+@@ -10,6 +10,16 @@
+ #include <ngx_event.h>
+ #include <ngx_stream.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int recv_wrapper(int sockfd, void *buf, size_t len, int flags)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, recv, sockfd, buf, len, flags);
++	return ret;
++}
++
++#define recv(...) recv_wrapper(__VA_ARGS__)
+ 
+ static void ngx_stream_log_session(ngx_stream_session_t *s);
+ static void ngx_stream_close_connection(ngx_connection_t *c);
+diff --color -urNp nginx-1.15.6/src/stream/ngx_stream_proxy_module.c nginx-1.15.6-flexos/src/stream/ngx_stream_proxy_module.c
+--- nginx-1.15.6/src/stream/ngx_stream_proxy_module.c	2021-07-12 12:05:52.526221511 +0200
++++ nginx-1.15.6-flexos/src/stream/ngx_stream_proxy_module.c	2021-07-12 11:58:23.538796601 +0200
+@@ -9,6 +9,16 @@
+ #include <ngx_core.h>
+ #include <ngx_stream.h>
+ 
++#include <flexos/isolation.h>
++
++static inline int getsockopt_wrapper(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
++{
++	int ret;
++	flexos_gate_r(liblwip, ret, getsockopt, sockfd, level, optname, optval, optlen);
++	return ret;
++}
++
++#define getsockopt(...) getsockopt_wrapper(__VA_ARGS__)
+ 
+ typedef struct {
+     ngx_addr_t                      *addr;

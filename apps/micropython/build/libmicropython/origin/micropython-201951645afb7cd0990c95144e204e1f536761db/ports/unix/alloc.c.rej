@@ -1,0 +1,16 @@
+--- unix/alloc.c	2019-10-02 11:16:25.154625696 +0200
++++ unix/alloc.c	2019-10-02 11:16:47.878383872 +0200
+@@ -79,11 +79,13 @@
+     }
+ }
+ 
++#if MICROPY_ENABLE_GC
+ void mp_unix_mark_exec(void) {
+     for (mmap_region_t *rg = MP_STATE_VM(mmap_region_head); rg != NULL; rg = rg->next) {
+         gc_collect_root(rg->ptr, rg->len / sizeof(mp_uint_t));
+     }
+ }
++#endif
+ 
+ #if MICROPY_FORCE_PLAT_ALLOC_EXEC
+ // Provide implementation of libffi ffi_closure_* functions in terms

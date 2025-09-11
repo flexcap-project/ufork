@@ -1,0 +1,6 @@
+name        := "micropython"
+description := "An implementation of Python 3.x for microcontrollers and small embedded systems."
+gitrepo     := "https://github.com/micropython/micropython.git"
+homepage    := "http://www.micropython.org"
+license     := "BSD-3.0-Clause"
+version     := 1.9.2 sha256:1e4b4462e474c24e494192d26fd1e55f26357e261b24e483faa1089f2b0ae51e http://micropython.org/resources/source/micropython-1.9.2.zip

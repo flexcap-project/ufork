@@ -1,0 +1,5 @@
+Q(freq)
+Q(duty_u16)
+Q(duty_ns)
+Q(invert)
+Q(device)

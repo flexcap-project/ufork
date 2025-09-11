@@ -1,0 +1,43 @@
+From cb6a16e1526741a5e4b0feea12e88b92db99672b Mon Sep 17 00:00:00 2001
+From: Costin Lupu <costin.lupu@cs.pub.ro>
+Date: Sat, 16 Nov 2019 22:45:13 +0200
+Subject: [UNIKRAFT PATCH] Make bytesToHuman() definitions static
+
+This should be either upstreamed or we should refactor and use a single function
+and then upstream that second solution.
+
+Signed-off-by: Costin Lupu <costin.lupu@cs.pub.ro>
+---
+ src/redis-cli.c | 2 +-
+ src/server.c    | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/redis-cli.c b/src/redis-cli.c
+index 480921c..9f1a14e 100644
+--- a/src/redis-cli.c
++++ b/src/redis-cli.c
+@@ -6684,7 +6684,7 @@ static long getLongInfoField(char *info, char *field) {
+ 
+ /* Convert number of bytes into a human readable string of the form:
+  * 100B, 2G, 100M, 4K, and so forth. */
+-void bytesToHuman(char *s, long long n) {
++static void bytesToHuman(char *s, long long n) {
+     double d;
+ 
+     if (n < 0) {
+diff --git a/src/server.c b/src/server.c
+index 7f0acaa..2524a12 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -3058,7 +3058,7 @@ NULL
+ 
+ /* Convert an amount of bytes into a human readable string in the form
+  * of 100B, 2G, 100M, 4K, and so forth. */
+-void bytesToHuman(char *s, unsigned long long n) {
++static void bytesToHuman(char *s, unsigned long long n) {
+     double d;
+ 
+     if (n < 1024) {
+-- 
+2.20.1
+

@@ -1,0 +1,8 @@
+Q(__name__)
+Q(machine)
+Q(mem8)
+Q(mem16)
+Q(mem32)
+Q(PinBase)
+Q(Signal)
+Q(machine)

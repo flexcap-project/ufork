@@ -1,0 +1,14 @@
+diff --color -urNp nginx-1.15.6/src/core/ngx_string.c nginx-1.15.6-fixed/src/core/ngx_string.c
+--- nginx-1.15.6/src/core/ngx_string.c	2018-11-06 14:32:09.000000000 +0100
++++ nginx-1.15.6-fixed/src/core/ngx_string.c	2021-11-29 11:06:42.971448049 +0100
+@@ -79,7 +79,9 @@ ngx_pstrdup(ngx_pool_t *pool, ngx_str_t
+         return NULL;
+     }
+ 
+-    ngx_memcpy(dst, src->data, src->len);
++    if (src->data != NULL && src->len > 0) {
++        ngx_memcpy(dst, src->data, src->len);
++    }
+ 
+     return dst;
+ }

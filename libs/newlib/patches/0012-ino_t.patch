@@ -1,0 +1,13 @@
+--- /root/.unikraft/apps/flexos-example/build/libnewlibc/origin/newlib-morello-release-1.7/newlib/libc/include/sys/_types.orig.h	2023-11-16 11:44:39.023898850 +0000
++++ /root/.unikraft/apps/flexos-example/build/libnewlibc/origin/newlib-morello-release-1.7/newlib/libc/include/sys/_types.h	2023-11-16 11:41:41.221291334 +0000
+@@ -12,6 +12,10 @@
+ #include <machine/_types.h>
+ #include <sys/lock.h>
+ 
++#ifndef __ino_t_defined
++typedef long __ino_t;
++#endif
++
+ #ifndef __off_t_defined
+ typedef long _off_t;
+ #endif

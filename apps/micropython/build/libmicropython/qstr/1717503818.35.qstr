@@ -1,0 +1,7 @@
+Q(id)
+Q(bits)
+Q(average)
+Q(vref)
+Q(read_u16)
+Q(deinit)
+Q(ADC)

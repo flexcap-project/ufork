@@ -1,0 +1,5 @@
+name        := "compiler-rt"
+description := "An LLVM project that provides implementations of various builtin functions for a variety of architectures."
+homepage    := "https://compiler-rt.llvm.org/"
+version     := 14.0.6 sha256:88df303840ca8fbff944e15e61c141226fe79f5d2b8e89fb024264d77841a02e https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/compiler-rt-14.0.6.src.tar.xz
+license     := "Apache-2.0-with-LLVM-exception"

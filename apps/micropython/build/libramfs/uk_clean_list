@@ -1,0 +1,6 @@
+/root/.unikraft/apps/micropython/build/libramfs/ramfs_vfsops.o
+/root/.unikraft/apps/micropython/build/libramfs/ramfs_vfsops.d
+/root/.unikraft/apps/micropython/build/libramfs/ramfs_vnops.o
+/root/.unikraft/apps/micropython/build/libramfs/ramfs_vnops.d
+/root/.unikraft/apps/micropython/build/libramfs.ld.o
+/root/.unikraft/apps/micropython/build/libramfs.o

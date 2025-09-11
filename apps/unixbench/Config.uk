@@ -1,0 +1,6 @@
+### Invisible option for dependencies
+config APPUNIXBENCH_DEPENDENCIES
+	bool
+	default y
+	select LIBFLEXOS
+	

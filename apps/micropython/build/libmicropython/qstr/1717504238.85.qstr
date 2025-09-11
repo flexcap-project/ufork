@@ -1,0 +1,5 @@
+Q(itemsize)
+Q(array)
+Q(bytearray)
+Q(memoryview)
+Q(iterator)

@@ -1,0 +1,42 @@
+From fdec8931eaa02585033e00a16926a3b2a1b94661 Mon Sep 17 00:00:00 2001
+From: Costin Lupu <costin.lupu@cs.pub.ro>
+Date: Sat, 16 Nov 2019 22:52:28 +0200
+Subject: [UNIKRAFT PATCH] src/redis-cli.c: Disable _serverAssert() definition
+
+Signed-off-by: Costin Lupu <costin.lupu@cs.pub.ro>
+---
+ src/redis-cli.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/redis-cli.c b/src/redis-cli.c
+index 9f1a14e..0bf48be 100644
+--- a/src/redis-cli.c
++++ b/src/redis-cli.c
+@@ -28,6 +28,9 @@
+  * POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++#ifdef __Unikraft__
++#include <uk/config.h>
++#endif
+ #include "fmacros.h"
+ #include "version.h"
+ 
+@@ -432,12 +435,14 @@ void dictListDestructor(void *privdata, void *val)
+     listRelease((list*)val);
+ }
+ 
++#ifndef CONFIG_LIBREDIS_SERVER
+ /* _serverAssert is needed by dict */
+ void _serverAssert(const char *estr, const char *file, int line) {
+     fprintf(stderr, "=== ASSERTION FAILED ===");
+     fprintf(stderr, "==> %s:%d '%s' is not true",file,line,estr);
+     *((char*)-1) = 'x';
+ }
++#endif
+ 
+ /*------------------------------------------------------------------------------
+  * Help functions
+-- 
+2.20.1
+

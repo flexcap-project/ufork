@@ -1,0 +1,64 @@
+menuconfig LIBREDIS
+	bool "Redis"
+	default n
+
+if LIBREDIS
+# hidden
+config LIBREDIS_COMMON
+	bool
+	default n
+	select LIBUKDEBUG
+	select LIBUKALLOC
+	select LIBUKSCHED
+	select LIBNEWLIBC
+	select LIBNEWLIBC_WANT_IO_C99_FORMATS if LIBNEWLIBC
+	select LIBNEWLIBC_LINUX_ERRNO_EXTENSIONS if LIBNEWLIBC
+	select LIBPTHREAD_EMBEDDED
+	select LIBPOSIX_SYSINFO
+	select LIBPOSIX_LIBDL
+	select LIBLWIP
+	select LWIP_IPV6
+# hidden
+config LIBREDIS_MAIN_FUNCTION
+	bool
+	default n
+
+config LIBREDIS_SERVER
+	bool "Redis server"
+	default y
+	select LIBREDIS_COMMON
+	select LIBREDIS_HIREDIS
+	imply LIBREDIS_LUA
+	help
+		Build the Redis server library.
+
+	if LIBREDIS_SERVER
+		config LIBREDIS_SERVER_MAIN_FUNCTION
+			bool "Provide main function"
+			default n
+			select LIBREDIS_MAIN_FUNCTION
+	endif
+
+config LIBREDIS_CLIENT
+	bool "Redis client"
+	default n
+	select LIBREDIS_COMMON
+	select LIBREDIS_HIREDIS
+	help
+		Build the Redis client library.
+
+	if LIBREDIS_CLIENT
+		config LIBREDIS_CLIENT_MAIN_FUNCTION
+			bool "Provide main function"
+			default n
+			select LIBREDIS_MAIN_FUNCTION
+	endif
+
+config LIBREDIS_LUA
+	bool "Use internal Lua implementation"
+	default n
+
+config LIBREDIS_HIREDIS
+	bool "Use internal Hiredis implementation"
+	default n
+endif

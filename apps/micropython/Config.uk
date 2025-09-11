@@ -1,0 +1,14 @@
+### Invisible option for dependencies
+config APPNGINX_DEPENDENCIES
+	bool
+	default y
+	select LIBLWIP
+	select LWIP_UKNETDEV
+	select LWIP_TCP
+	select LWIP_THREADS
+	select LWIP_SOCKET
+	select LWIP_AUTOIFACE
+	select LWIP_IPV4
+	select LIBUKSCHED
+	select LIBUKSCHEDCOOP
+	select LIBNEWLIBC

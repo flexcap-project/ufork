@@ -1,0 +1,8 @@
+Q(id)
+Q(pins)
+Q(init)
+Q(deinit)
+Q(readblocks)
+Q(writeblocks)
+Q(ioctl)
+Q(SD)

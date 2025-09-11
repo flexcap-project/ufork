@@ -1,0 +1,8 @@
+Q(baudrate)
+Q(polarity)
+Q(phase)
+Q(firstbit)
+Q(sck)
+Q(mosi)
+Q(miso)
+Q(SPI)

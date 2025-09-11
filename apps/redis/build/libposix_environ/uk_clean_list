@@ -1,0 +1,14 @@
+/root/.unikraft/apps/flexos-example/build/libposix_environ/setenv.o
+/root/.unikraft/apps/flexos-example/build/libposix_environ/setenv.d
+/root/.unikraft/apps/flexos-example/build/libposix_environ/unsetenv.o
+/root/.unikraft/apps/flexos-example/build/libposix_environ/unsetenv.d
+/root/.unikraft/apps/flexos-example/build/libposix_environ/clearenv.o
+/root/.unikraft/apps/flexos-example/build/libposix_environ/clearenv.d
+/root/.unikraft/apps/flexos-example/build/libposix_environ/putenv.o
+/root/.unikraft/apps/flexos-example/build/libposix_environ/putenv.d
+/root/.unikraft/apps/flexos-example/build/libposix_environ/getenv.o
+/root/.unikraft/apps/flexos-example/build/libposix_environ/getenv.d
+/root/.unikraft/apps/flexos-example/build/libposix_environ/environ.o
+/root/.unikraft/apps/flexos-example/build/libposix_environ/environ.d
+/root/.unikraft/apps/flexos-example/build/libposix_environ.ld.o
+/root/.unikraft/apps/flexos-example/build/libposix_environ.o

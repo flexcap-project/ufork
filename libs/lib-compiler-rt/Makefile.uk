@@ -1,0 +1,253 @@
+#  libcompiler_rt Makefile.uk
+#
+#  Authors: Vlad-Andrei Badoiu <vlad_andrei.badoiu@stud.acs.upb.ro>
+#           Marco Schlumpp <marco@unikraft.io>
+#           Andrei Tatar <andrei@unikraft.io>
+#
+#  Copyright (c) 2019, NEC Europe Ltd., NEC Corporation. All rights reserved.
+#  Copyright (c) 2023, Unikraft GmbH and The Unikraft Authors.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted provided that the following conditions
+#  are met:
+#
+#  1. Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#  2. Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+#  3. Neither the name of the copyright holder nor the names of its
+#     contributors may be used to endorse or promote products derived from
+#     this software without specific prior written permission.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+#  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+#  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+#  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+#  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+#  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+#  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+#  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+#  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+#  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+#
+
+################################################################################
+# Library registration
+################################################################################
+$(eval $(call addlib_s,libcompiler_rt,$(CONFIG_LIBCOMPILER_RT)))
+
+################################################################################
+# Sources
+################################################################################
+LIBCOMPILER_RT_VERSION=1.7.0
+LIBCOMPILER_RT_URL=https://raw.githubusercontent.com/jkressel/morello-newlib/main/compiler-rt-$(LIBCOMPILER_RT_VERSION).zip
+LIBCOMPILER_RT_PATCHDIR=$(LIBCOMPILER_RT_BASE)/patches
+$(eval $(call fetch,libcompiler_rt,$(LIBCOMPILER_RT_URL)))
+$(eval $(call patch,libcompiler_rt,$(LIBCOMPILER_RT_PATCHDIR),compiler-rt-$(LIBCOMPILER_RT_VERSION)))
+
+################################################################################
+# Helpers
+################################################################################
+LIBCOMPILER_RT_SRC=$(LIBCOMPILER_RT_ORIGIN)/compiler-rt-$(LIBCOMPILER_RT_VERSION)/compiler-rt
+
+################################################################################
+# Library includes
+################################################################################
+CINCLUDES-$(CONFIG_LIBCOMPILER_RT) += -I$(LIBCOMPILER_RT_SRC)/lib
+CINCLUDES-$(CONFIG_LIBCOMPILER_RT) += -I$(LIBCOMPILER_RT_SRC)/lib/builtins
+
+CXXINCLUDES-$(CONFIG_LIBCOMPILER_RT) += -I$(LIBCOMPILER_RT_SRC)/lib
+CXXINCLUDES-$(CONFIG_LIBCOMPILER_RT) += -I$(LIBCOMPILER_RT_SRC)/lib/builtins
+
+LIBCOMPILER_RT_CINCLUDES-$(call have_gcc) += -iquote$(LIBCOMPILER_RT_BASE)/include
+
+################################################################################
+# Global flags
+################################################################################
+LIBCOMPILER_RT_SUPPRESS_FLAGS-y += -Wno-unused-parameter
+LIBCOMPILER_RT_SUPPRESS_FLAGS-$(have_gcc) += -Wno-builtin-declaration-mismatch
+
+LIBCOMPILER_RT_CFLAGS-y   += $(LIBCOMPILER_RT_SUPPRESS_FLAGS-y)
+LIBCOMPILER_RT_CXXFLAGS-y += $(LIBCOMPILER_RT_SUPPRESS_FLAGS-y)
+
+################################################################################
+# Library sources
+################################################################################
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/absvdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/absvsi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/absvti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/adddf3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/addsf3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/addvdi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/addvsi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/addvti3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/apple_versioning.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ashldi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ashlti3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ashrdi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ashrti3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/bswapdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/bswapsi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/clear_cache.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/clzdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/clzsi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/clzti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/cmpdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/cmpti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ctzdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ctzsi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ctzti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/divdf3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/divdi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/divmoddi4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/divmodsi4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/divmodti4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/divsf3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/divsi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/divti3.c
+#LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/enable_execute_stack.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/extendhfsf2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/extendsfdf2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ffsdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ffssi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ffsti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunsxfdi.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunsxfsi.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunsxfti.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixxfdi.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixxfti.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatdisf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatditf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatdixf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floattidf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floattisf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floattixf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatundisf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatunditf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatundixf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatuntidf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatuntisf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatuntixf.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/fp_mode.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/int_util.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/lshrdi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/lshrti3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/moddi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/modsi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/modti3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/muldc3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/muldf3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/muldi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/mulodi4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/mulosi4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/muloti4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/mulsc3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/mulsf3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/multc3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/multi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/mulvdi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/mulvsi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/mulvti3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/mulxc3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/negdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/negti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/negvdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/negvsi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/negvti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/os_version_check.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/paritydi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/paritysi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/parityti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/popcountdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/popcountsi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/popcountti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/powidf2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/powisf2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/powixf2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/subvdi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/subvsi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/subvti3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/trampoline_setup.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/truncdfhf2.c
+#LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/truncdfsf2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/truncsfhf2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ucmpdi2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/ucmpti2.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/udivdi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/udivmoddi4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/udivmodsi4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/udivmodti4.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/udivsi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/udivti3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/umoddi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/umodsi3.c
+LIBCOMPILER_RT_SRCS-y += $(LIBCOMPILER_RT_SRC)/lib/builtins/umodti3.c
+
+LIBCOMPILER_RT_SRCS-$(CONFIG_ARCH_X86_64) += $(LIBCOMPILER_RT_SRC)/lib/builtins/cpu_model.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_ARCH_X86_64) += $(LIBCOMPILER_RT_SRC)/lib/builtins/x86_64/chkstk2.S
+LIBCOMPILER_RT_SRCS-$(CONFIG_ARCH_X86_64) += $(LIBCOMPILER_RT_SRC)/lib/builtins/x86_64/chkstk.S
+
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/addtf3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/comparedf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/comparesf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/comparetf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/divdc3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/divsc3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/divtc3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/divtf3.c
+#LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/divxc3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/extenddftf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/extendhftf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/extendsftf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixdfdi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixdfsi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixdfti.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixsfdi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixsfsi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixsfti.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixtfdi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixtfsi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixtfti.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunsdfdi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunsdfsi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunsdfti.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunssfdi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunssfsi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunssfti.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunstfdi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunstfsi.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/fixunstfti.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatdidf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatsidf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatsisf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatsitf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floattitf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatundidf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatunsidf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatunsisf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatunsitf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/floatuntitf.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/multf3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/negdf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/negsf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/powitf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/subdf3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/subsf3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/subtf3.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/trunctfdf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/trunctfhf2.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_MATH) += $(LIBCOMPILER_RT_SRC)/lib/builtins/trunctfsf2.c
+
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_GCCPERSONALITY) += $(LIBCOMPILER_RT_SRC)/lib/builtins/gcc_personality_v0.c
+
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_ATOMIC) += $(LIBCOMPILER_RT_SRC)/lib/builtins/atomic.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_ATOMIC) += $(LIBCOMPILER_RT_SRC)/lib/builtins/atomic_flag_clear.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_ATOMIC) += $(LIBCOMPILER_RT_SRC)/lib/builtins/atomic_flag_clear_explicit.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_ATOMIC) += $(LIBCOMPILER_RT_SRC)/lib/builtins/atomic_flag_test_and_set.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_ATOMIC) += $(LIBCOMPILER_RT_SRC)/lib/builtins/atomic_flag_test_and_set_explicit.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_ATOMIC) += $(LIBCOMPILER_RT_SRC)/lib/builtins/atomic_signal_fence.c
+LIBCOMPILER_RT_SRCS-$(CONFIG_LIBCOMPILER_RT_ATOMIC) += $(LIBCOMPILER_RT_SRC)/lib/builtins/atomic_thread_fence.c
+
+LIBCOMPILER_RT_LDFLAGS-y += -T $(LIBCOMPILER_RT_BASE)/flexos_extra.ld

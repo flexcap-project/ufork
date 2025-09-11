@@ -1,0 +1,5 @@
+Q(addr)
+Q(addr_type)
+Q(rssi)
+Q(getScanData)
+Q(ScanEntry)

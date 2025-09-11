@@ -1,0 +1,40 @@
+menuconfig LIBSASSYFORK
+	bool "Single Address Space (Sassy ;)) fork"
+	default n
+
+if LIBSASSYFORK
+choice
+	prompt "Copy Type"
+	default LIBSASSYFORK_SYNC
+
+config LIBSASSYFORK_SYNC
+	bool "Synchronous copying when fork() occurs"
+
+config LIBSASSYFORK_COW
+	bool "Enable CoW when fork() occurs"
+
+config LIBSASSYFORK_COA
+	bool "Enable CoA when fork() occurs, this is just for evaluation really"
+endchoice
+
+
+
+config LIBSASSYFORK_SMP
+		bool "SFork use SMP"
+		default n
+		help
+			Use SMP as part of forking new processes
+
+config LIBSASSYFORK_TOCTTOU
+		bool "SFork TOCTTOU mitigation"
+		default n
+		help
+			Copy buffers to and from user to mitigate tocttou attacks
+
+config LIBSASSYFORK_EXTRA_CHECKS
+		bool "SFork syscall checks"
+		default n
+		help
+			Harden syscall interface
+endif
+

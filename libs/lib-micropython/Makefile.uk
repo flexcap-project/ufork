@@ -1,0 +1,334 @@
+#  libmicropython Makefile.uc
+#
+#  Authors: Felipe Huici <felipe.huici@neclab.eu>
+#
+#
+#  Copyright (c) 2017, NEC Europe Ltd., NEC Corporation. All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted provided that the following conditions
+#  are met:
+#
+#  1. Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#  2. Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+#  3. Neither the name of the copyright holder nor the names of its
+#     contributors may be used to endorse or promote products derived from
+#     this software without specific prior written permission.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+#  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+#  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+#  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+#  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+#  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+#  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+#  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+#  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+#  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+#
+
+################################################################################
+# check reqs
+################################################################################
+ifdef CONFIG_LWIP_IPV6
+$(error IPV6 not supported, please delesect and re-run)
+endif
+
+################################################################################
+# Library registration
+################################################################################
+$(eval $(call addlib_s,libmicropython,$(CONFIG_LIBMICROPYTHON)))
+
+################################################################################
+# Sources
+################################################################################
+LIBMICROPYTHON_VERSION=1.9.2
+LIBMICROPYTHON_TAR=micropython-201951645afb7cd0990c95144e204e1f536761db
+LIBMICROPYTHON_URL=https://github.com/glasgowPLI/micropython/archive/201951645afb7cd0990c95144e204e1f536761db.zip
+LIBMICROPYTHON_PATCHDIR=$(LIBMICROPYTHON_BASE)/patches
+$(eval $(call fetch,libmicropython,$(LIBMICROPYTHON_URL)))
+$(eval $(call patch,libmicropython,$(LIBMICROPYTHON_PATCHDIR),$(LIBMICROPYTHON_TAR)))
+
+################################################################################
+# Helpers
+################################################################################
+LIBMICROPYTHON_SRCS_BASE=$(LIBMICROPYTHON_ORIGIN)/$(LIBMICROPYTHON_TAR)
+LIBMICROPYTHON_FROZEN_DIR = scripts
+LIBMICROPYTHON_PY_QSTR_DEFS = $(LIBMICROPYTHON_SRCS_BASE)/py/qstrdefs.h
+LIBMICROPYTHON_QSTR_DEFS = $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/qstrdefsport.h
+LIBMICROPYTHON_HEADER_BUILD = $(LIBMICROPYTHON_SRCS_BASE)/genhdr
+LIBMICROPYTHON_QSTR_DEFS_COLLECTED = $(LIBMICROPYTHON_HEADER_BUILD)/qstrdefs.collected.h
+LIBMICROPYTHON_QSTR_DEFS_COLLECTEDR = $(LIBMICROPYTHON_HEADER_BUILD)/root_pointers.collected.h
+LIBMICROPYTHON_MPCONFIGPORT_MK = $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/mpconfigport.mk
+LIBMICROPYTHON_QSTR_GEN_EXTRA_CFLAGS += -DNO_QSTR -D MICROPY_PY_LWIP
+PYTHON := python
+
+################################################################################
+# Micropython options
+################################################################################
+-include $(LIBMICROPYTHON_BASE)/mpconfigport.mk
+
+################################################################################
+# Library includes
+################################################################################
+LIBMICROPYTHON_CINCLUDES-y += -I$(LIBMICROPYTHON_BASE)/include              \
+			      -I$(LIBMICROPYTHON_SRCS_BASE)                 \
+			      -I$(LIBMICROPYTHON_SRCS_BASE)/py              \
+				  -I$(LIBMICROPYTHON_SRCS_BASE)/lib/axtls/crypto            \
+			      -I$(LIBMICROPYTHON_SRCS_BASE)/ports/unix            \
+				  -I$(LIBMICROPYTHON_SRCS_BASE)/extmod            \
+			      -I$(LIBMICROPYTHON_SRCS_BASE)/lib/mp-readline \
+                              -I$(LIBMICROPYTHON_SRCS_BASE)/lib/netutils    \
+                              -I$(LIBMICROPYTHON_SRCS_BASE)/lib/utils
+
+################################################################################
+# Global flags
+################################################################################
+LIBMICROPYTHON_CFLAGS-y += -DUNIX -D MICROPY_PY_LWIP  \
+			   -Wno-unused-parameter              \
+			   -Wno-override-init                 \
+			   -Wno-sign-compare		      \
+			   -Wno-unused-value		      \
+			   -Wno-format			      \
+			   -Wno-incompatible-pointer-types    \
+			   -Wno-implicit-fallthrough	      \
+			   -Wno-expansion-to-defined 	      \
+			   -Wno-unused-label		      \
+			   -Wno-implicit-function-declaration \
+			   -Wno-unused-but-set-variable       \
+			   -Wno-unused-function -O3
+
+#LIBMICROPYTHON_OPTIMIZATIONS += -fno-gcse -fno-gnu-unique \
+#				-fno-move-loop-invariants
+
+CFLAGS-$(CONFIG_LIBMICROPYTHON)   += $(LIBMICROPYTHON_OPTIMIZATIONS)
+CXXFLAGS-$(CONFIG_LIBMICROPYTHON) += $(LIBMICROPYTHON_OPTIMIZATIONS)
+GOFLAGS-$(CONFIG_LIBMICROPYTHON)  += $(LIBMICROPYTHON_OPTIMIZATIONS)
+
+LIBMICROPYTHON_LDFLAGS-y += -T $(LIBMICROPYTHON_BASE)/flexos_extra.ld
+
+################################################################################
+# Unikraft <-> Micropython glue code
+################################################################################
+LIBMICROPYTHON_SRCS-$(CONFIG_LIBMICROPYTHON_MAIN_FUNCTION) += $(LIBMICROPYTHON_BASE)/glue.c
+
+################################################################################
+# Micropyton sources - py
+################################################################################
+LIBMICROPYTHON_MAIN_FLAGS-y += -Dmain=micropython_main
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/main.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/mpstate.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/nlrx86.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/nlrx64.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/nlrthumb.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/nlrxtensa.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/nlr.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/nlrmorello.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/malloc.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/gc.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/qstr.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/vstr.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/mpprint.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/unicode.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/mpz.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/lexer.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/parse.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/scope.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/compile.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/emitcommon.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/emitnative.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/emitbc.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/asmbase.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/asmx64.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/asmx86.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/asmthumb.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/emitinlinethumb.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/asmarm.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/formatfloat.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/parsenumbase.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/parsenum.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/emitglue.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/runtime.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/runtime_utils.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/nativeglue.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/stackctrl.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/argcheck.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/warning.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/map.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/obj.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objarray.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objattrtuple.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objbool.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objboundmeth.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objcap.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objcell.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objclosure.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objcomplex.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objdict.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objenumerate.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objexcept.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objfilter.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objfloat.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objfun.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objgenerator.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objgetitemiter.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objint.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objint_longlong.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objint_mpz.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objlist.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objmap.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objmodule.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objobject.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objpolyiter.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objproperty.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objnone.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objnamedtuple.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objrange.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objreversed.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objset.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objsingleton.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objslice.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objstr.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objstrunicode.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objstringio.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objtuple.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objtype.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/objzip.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/opmethods.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/sequence.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/stream.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/binary.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/builtinimport.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/builtinevex.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modarray.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modbuiltins.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modcollections.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modgc.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modio.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modmath.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modcmath.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modmicropython.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modstruct.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/modsys.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/moduerrno.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/persistentcode.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/scheduler.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/vm.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/bc.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/showbc.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/repl.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/reader.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/smallint.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/py/frozenmod.c
+
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/shared/runtime/pyexec.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/shared/readline/readline.c
+
+################################################################################
+# Micropyton sources - extmod
+################################################################################
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/moductypes.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modure.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modcryptolib.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modtime.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/moduzlib.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/moduheapq.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/moduhashlib.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modubinascii.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/machine_mem.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/machine_i2c.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/machine_pinbase.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/machine_pulse.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/machine_signal.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modrandom.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modutimeq.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modwebsocket.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modwebrepl.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modframebuf.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/fsusermount.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modujson.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/moduos_dupterm.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/virtpin.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/vfs.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/vfs_reader.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/vfs_posix.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/vfs_posix_file.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/extmod/utime_mphal.c
+LIBMICROPYTHON_SRCS-$(CONFIG_LIBLWIP) += $(LIBMICROPYTHON_SRCS_BASE)/extmod/modlwip.c
+
+################################################################################
+# Micropyton sources - lib
+################################################################################
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/lib/utils/pyexec.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/lib/timeutils/timeutils.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/lib/mp-readline/readline.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/shared/netutils/netutils.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/lib/axtls/crypto/aes.c
+
+################################################################################
+# Micropyton sources - unix
+################################################################################
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/gccollect.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/shared/runtime/gchelper_generic.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/unix_mphal.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/mpthreadport.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/input.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/file.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/alloc.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/coverage.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/fatfs_port.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/moduselect.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/modmachine.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/modtime.c
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/modos.c
+#LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/modsocket.c
+
+################################################################################
+# Micropyton sources - frozen modules (auto-generated, see rule below)
+################################################################################
+LIBMICROPYTHON_SRCS-y += $(LIBMICROPYTHON_BUILD)/frozen.c
+
+################################################################################
+# Lib-specific Targets
+################################################################################
+$(LIBMICROPYTHON_HEADER_BUILD)/qstrdefs.generated.h: $(LIBMICROPYTHON_PY_QSTR_DEFS) $(LIBMICROPYTHON_QSTR_DEFS) $(LIBMICROPYTHON_QSTR_DEFS_COLLECTED) $(LIBMICROPYTHON_SRCS_BASE)/py/makeqstrdata.py $(LIBMICROPYTHON_SRCS_BASE)/ports/unix/mpconfigport.h $(LIBMICROPYTHON_MPCONFIGPORT_MK) $(LIBMICROPYTHON_SRCS_BASE)/py/mpconfig.h | $(LIBMICROPYTHON_HEADER_BUILD)
+	$(call verbose_cmd,GEN,libmicropython':' qstrdefs.preprocessed.h,$(CAT) $(LIBMICROPYTHON_PY_QSTR_DEFS) $(LIBMICROPYTHON_QSTR_DEFS) $(LIBMICROPYTHON_QSTR_DEFS_COLLECTED) | $(SED) 's/^Q(.*)/"&"/' | $(CC) -E $(CFLAGS) $(CFLAGS-y) $(LIBMICROPYTHON_CFLAGS) $(LIBMICROPYTHON_CFLAGS-y) $(CINCLUDES) $(CINCLUDES-y) $(LIBMICROPYTHON_CINCLUDES) $(LIBMICROPYTHON_CINCLUDES-y) - | $(SED) 's/^"\(Q(.*)\)"/\1/' > $(LIBMICROPYTHON_HEADER_BUILD)/qstrdefs.preprocessed.h)
+	$(call verbose_cmd,PY,libmicropython':' qstrdefs.generated.h,$(PYTHON) $(LIBMICROPYTHON_SRCS_BASE)/py/makeqstrdata.py $(LIBMICROPYTHON_HEADER_BUILD)/qstrdefs.preprocessed.h > $@)
+
+$(LIBMICROPYTHON_HEADER_BUILD): $(LIBMICROPYTHON_BUILD)/.patched
+	$(call verbose_cmd,MKDIR,libmicropython':' $(notdir $(LIBMICROPYTHON_HEADER_BUILD)),$(MKDIR) $(LIBMICROPYTHON_HEADER_BUILD))
+
+$(LIBMICROPYTHON_HEADER_BUILD)/mpversion.h: | $(LIBMICROPYTHON_HEADER_BUILD)
+	$(call verbose_cmd,PY,libmicropython':' $(notdir $@),$(PYTHON) $(LIBMICROPYTHON_SRCS_BASE)/py/makeversionhdr.py $@)
+
+$(LIBMICROPYTHON_HEADER_BUILD)/qstr.i.last: | $(LIBMICROPYTHON_HEADER_BUILD)/mpversion.h
+	$(call verbose_cmd,GEN,libmicropython':' $(notdir $@),$(CC) -E $(LIBMICROPYTHON_QSTR_GEN_EXTRA_CFLAGS) $(CINCLUDES) $(CINCLUDES-y) $(LIBMICROPYTHON_CINCLUDES) $(LIBMICROPYTHON_CINCLUDES-y) $(LIBMICROPYTHON_SRCS-y) >$(LIBMICROPYTHON_HEADER_BUILD)/qstr.i.last)
+
+$(LIBMICROPYTHON_HEADER_BUILD)/qstr.split: $(LIBMICROPYTHON_HEADER_BUILD)/qstr.i.last
+	$(call verbose_cmd,PY,libmicropython':' $(notdir $@),$(PYTHON) $(LIBMICROPYTHON_SRCS_BASE)/py/makeqstrdefs.py split qstr $(LIBMICROPYTHON_HEADER_BUILD)/qstr.i.last $(LIBMICROPYTHON_HEADER_BUILD)/qstr $(LIBMICROPYTHON_QSTR_DEFS_COLLECTED) && touch $@)
+
+$(LIBMICROPYTHON_QSTR_DEFS_COLLECTED): $(LIBMICROPYTHON_HEADER_BUILD)/qstr.split
+	$(call verbose_cmd,PY,libmicropython':' $(notdir $@),$(PYTHON) $(LIBMICROPYTHON_SRCS_BASE)/py/makeqstrdefs.py cat qstr $(LIBMICROPYTHON_HEADER_BUILD)/qstr.i.last $(LIBMICROPYTHON_HEADER_BUILD)/qstr $(LIBMICROPYTHON_QSTR_DEFS_COLLECTED))
+
+
+
+
+
+
+
+
+
+
+
+
+
+#$(LIBMICROPYTHON_BUILD)/frozen.c: $(wildcard $(LIBMICROPYTHON_FROZEN_DIR)/*) $(LIBMICROPYTHON_HEADER_BUILD)
+#	$(call verbose_cmd,PY,libmicropython':' $(notdir $@),$(PYTHON) $(LIBMICROPYTHON_SRCS_BASE)/tools/make-frozen.py $(LIBMICROPYTHON_FROZEN_DIR) > $@)
+
+$(LIBMICROPYTHON_BUILD)/.prepared: $(LIBMICROPYTHON_BUILD)/frozen.c $(LIBMICROPYTHON_HEADER_BUILD)/qstrdefs.generated.h
+
+UK_PREPARE-$(CONFIG_LIBMICROPYTHON) += $(LIBMICROPYTHON_BUILD)/.prepared

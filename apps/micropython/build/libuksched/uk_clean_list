@@ -1,0 +1,8 @@
+/root/.unikraft/apps/micropython/build/libuksched/sched.o
+/root/.unikraft/apps/micropython/build/libuksched/sched.d
+/root/.unikraft/apps/micropython/build/libuksched/thread.o
+/root/.unikraft/apps/micropython/build/libuksched/thread.d
+/root/.unikraft/apps/micropython/build/libuksched/thread_attr.o
+/root/.unikraft/apps/micropython/build/libuksched/thread_attr.d
+/root/.unikraft/apps/micropython/build/libuksched.ld.o
+/root/.unikraft/apps/micropython/build/libuksched.o

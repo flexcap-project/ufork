@@ -1,0 +1,16 @@
+/root/.unikraft/apps/nginx/build/libuktime/__month_to_secs.o
+/root/.unikraft/apps/nginx/build/libuktime/__month_to_secs.d
+/root/.unikraft/apps/nginx/build/libuktime/__secs_to_tm.o
+/root/.unikraft/apps/nginx/build/libuktime/__secs_to_tm.d
+/root/.unikraft/apps/nginx/build/libuktime/timegm.o
+/root/.unikraft/apps/nginx/build/libuktime/timegm.d
+/root/.unikraft/apps/nginx/build/libuktime/__tm_to_secs.o
+/root/.unikraft/apps/nginx/build/libuktime/__tm_to_secs.d
+/root/.unikraft/apps/nginx/build/libuktime/__year_to_secs.o
+/root/.unikraft/apps/nginx/build/libuktime/__year_to_secs.d
+/root/.unikraft/apps/nginx/build/libuktime/time.o
+/root/.unikraft/apps/nginx/build/libuktime/time.d
+/root/.unikraft/apps/nginx/build/libuktime/timer.o
+/root/.unikraft/apps/nginx/build/libuktime/timer.d
+/root/.unikraft/apps/nginx/build/libuktime.ld.o
+/root/.unikraft/apps/nginx/build/libuktime.o

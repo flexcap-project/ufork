@@ -1,0 +1,6 @@
+/root/.unikraft/apps/redis/build/libuklock/semaphore.o
+/root/.unikraft/apps/redis/build/libuklock/semaphore.d
+/root/.unikraft/apps/redis/build/libuklock/mutex.o
+/root/.unikraft/apps/redis/build/libuklock/mutex.d
+/root/.unikraft/apps/redis/build/libuklock.ld.o
+/root/.unikraft/apps/redis/build/libuklock.o

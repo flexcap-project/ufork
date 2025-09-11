@@ -1,0 +1,5 @@
+Q(baudrate)
+Q(timeout)
+Q(timeout_char)
+Q(txbuf)
+Q(rxbuf)
